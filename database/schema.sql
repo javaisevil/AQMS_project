@@ -3,13 +3,11 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:8889
--- Generation Time: May 15, 2026 at 01:38 PM
+-- Generation Time: May 15, 2026 at 06:06 PM
 -- Server version: 8.0.44
 -- PHP Version: 8.3.30
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
-CREATE DATABASE IF NOT EXISTS `AQMS_db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
-USE `AQMS_db`;
 START TRANSACTION;
 SET time_zone = "+00:00";
 
@@ -90,6 +88,17 @@ CREATE TABLE `contact_hours` (
   `hours` decimal(5,1) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+--
+-- Dumping data for table `contact_hours`
+--
+
+INSERT INTO `contact_hours` (`id`, `course_id`, `activity_type`, `hours`) VALUES
+(1, 2, 'Lectures', NULL),
+(2, 2, 'Laboratory/Studio', NULL),
+(3, 2, 'Field', NULL),
+(4, 2, 'Tutorial', NULL),
+(5, 2, 'Others', NULL);
+
 -- --------------------------------------------------------
 
 --
@@ -132,6 +141,14 @@ CREATE TABLE `course_specs` (
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Dumping data for table `course_specs`
+--
+
+INSERT INTO `course_specs` (`course_id`, `program_id`, `faculty_id`, `course_title`, `course_code`, `credit_hours`, `course_type`, `teaching_mode`, `course_level`, `prerequisites`, `corequisites`, `course_description`, `objectives`, `learning_resources`, `version`, `status`, `created_at`, `updated_at`) VALUES
+(1, 1, 1, 'Advanced Web Programming', 'CIS312', 3.0, NULL, NULL, 3, NULL, NULL, NULL, NULL, NULL, '1.0', 'draft', '2026-05-15 19:24:12', '2026-05-15 19:24:12'),
+(2, 1, 1, 'General Chemistry', 'CHM 101', 4.0, '', '', 1, '', '', '', '', NULL, '1.0', 'draft', '2026-05-15 20:03:23', '2026-05-15 20:03:47');
 
 -- --------------------------------------------------------
 
@@ -446,7 +463,7 @@ ALTER TABLE `user`
 -- AUTO_INCREMENT for table `approval_log`
 --
 ALTER TABLE `approval_log`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `assessments`
@@ -470,7 +487,7 @@ ALTER TABLE `clo_plo_mapping`
 -- AUTO_INCREMENT for table `contact_hours`
 --
 ALTER TABLE `contact_hours`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `course_learning_outcomes`
@@ -482,7 +499,7 @@ ALTER TABLE `course_learning_outcomes`
 -- AUTO_INCREMENT for table `course_specs`
 --
 ALTER TABLE `course_specs`
-  MODIFY `course_id` int NOT NULL AUTO_INCREMENT;
+  MODIFY `course_id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `course_topics`
@@ -542,7 +559,7 @@ ALTER TABLE `teaching_modes`
 -- AUTO_INCREMENT for table `user`
 --
 ALTER TABLE `user`
-  MODIFY `user_id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `user_id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- Constraints for dumped tables
