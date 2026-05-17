@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:8889
--- Generation Time: May 15, 2026 at 06:06 PM
+-- Generation Time: May 17, 2026 at 09:43 PM
 -- Server version: 8.0.44
 -- PHP Version: 8.3.30
 
@@ -207,6 +207,22 @@ CREATE TABLE `program_kpis` (
   `measurement_time` varchar(200) DEFAULT NULL,
   `years_to_achieve` int DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Dumping data for table `program_kpis`
+--
+
+INSERT INTO `program_kpis` (`id`, `program_id`, `kpi_code`, `kpi_text`, `target_level`, `measurement_method`, `measurement_time`, `years_to_achieve`) VALUES
+(1, 1, 'KPI-01', 'Student completion rate', '80%', 'Data from registration office.', 'End of academic year', 1),
+(2, 1, 'KPI-02', 'First year student retention rate', '90%', 'Data from registration office', 'Beginning of following year', 1),
+(3, 1, 'KPI-03', 'Student evaluation of quality of learning', '95%', 'Biannual survey', 'End of academic semester', 1),
+(4, 1, 'KPI-04', 'Student evaluation of quality of courses', '90%', 'Biannual survey', 'End of academic semester', 1),
+(5, 1, 'KPI-05', 'Student performance in national examinations', '85%', 'Exam result data', 'After results are published', 1),
+(6, 1, 'KPI-06', 'Graduate employability', '95%', 'Alumni survey', 'One year after graduation', 1),
+(7, 1, 'KPI-07', 'Employer\'s evaluation of graduate\'s proficiency', '90%', 'Employer survey', 'Annually', 1),
+(8, 1, 'KPI-08', 'Ratio of students to teaching staff', '95%', 'Statistical data', 'End of academic year', 1),
+(9, 1, 'KPI-09', 'Percentage of faculty member publications', '80%', 'Faculty reports', 'End of academic year', 1),
+(10, 1, 'KPI-10', 'Citation rate in refrenced journals per faculty member', '80%', 'Citation index', 'End of academic year', 1);
 
 -- --------------------------------------------------------
 
@@ -523,7 +539,7 @@ ALTER TABLE `logs`
 -- AUTO_INCREMENT for table `program_kpis`
 --
 ALTER TABLE `program_kpis`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `program_learning_outcomes`
