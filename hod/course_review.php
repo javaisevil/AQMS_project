@@ -199,15 +199,14 @@ include '../includes/header.php';
                 <div class="form-group">
                     <label for="comment">Comment / Feedback</label>
                     <textarea id="comment" name="comment" rows="5"
-                              placeholder="Optional for approval. Required when returning to faculty."></textarea>
+                              placeholder="Optional for approval. Required when returning to faculty." oninput="checkComment()"></textarea>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:8px;">
                     <button type="submit" name="action" value="approve" class="btn btn-success btn-full"
                             onclick="return confirm('Approve and forward to QA?')">
                         ✓ Approve — Forward to QA
                     </button>
-                    <button type="submit" name="action" value="reject" class="btn btn-danger btn-full"
-                            onclick="return confirm('Return to faculty? Make sure you wrote a comment.')">
+                    <button type="submit" id="rejectBtn" name="action" value="reject" class="btn btn-danger btn-full" disabled> 
                         ↺ Return to Faculty
                     </button>
                 </div>
@@ -255,5 +254,23 @@ include '../includes/header.php';
 
     </div>
 </div>
+
+<script> 
+    function checkComment() {
+        const commentBox = document.getElementById('comment');
+        const rejectBtn = document.getElementById('rejectBtn');
+
+        if(commentBox.value.trim().length > 0) {
+            rejectBtn.disabled = false;
+            rejectBtn.style.opacity = "1";
+            rejectBtn.style.cursor = "pointer";
+        } else {
+            rejectBtn.disabled = true;
+            rejectBtn.style.opacity = "0.5";
+            rejectBtn.style.cursor = "not-allowed";
+        }
+    }
+    document.addEventListener('DOMContentLoaded', checkComment);
+</script>
 
 <?php include '../includes/footer.php'; ?>

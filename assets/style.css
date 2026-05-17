@@ -44,6 +44,7 @@
     --info:             #1E40AF;
     --info-bg:          #DBEAFE;
 }
+
 /* base */
 html, body { height: 100%; }
 
@@ -238,7 +239,7 @@ body.login-page::before {
 }
 .logout-link:hover { color: var(--yu-orange); text-decoration: none; }
 
-/* Main Content */
+/*  Main Content */
 .main-content {
     margin-left: 240px;
     flex: 1;
@@ -520,6 +521,18 @@ textarea { resize: vertical; min-height: 80px; }
 .btn-ghost   { background: #F3F4F6; color: var(--yu-black); }
 .btn-ghost:hover { background: #E5E7EB; color: var(--yu-black); }
 
+.btn-edit {
+    background: #e0e0e0;
+    border: 1px solid #ccc;
+    color: var(--yu-black);
+}
+.btn-edit:hover {
+    background: #d4d4d4;
+    border-color: #bbb;
+    color: var(--yu-black);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
 .btn-sm   { padding: 5px 12px; font-size: 12px; }
 .btn-lg   { padding: 11px 24px; font-size: 14.5px; }
 .btn-full { width: 100%; display: flex; }
@@ -747,4 +760,61 @@ textarea { resize: vertical; min-height: 80px; }
     .main-content { margin-left: 60px; }
     .content-body { padding: 18px 14px; }
     .topbar { padding: 12px 16px; }
+}
+
+/* modals */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-open {
+    display: flex;
+}
+
+.modal-content {
+    width: 400px;
+    background: var(--white);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.modal-close {
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 24px;
+    padding: 0;
+    line-height: 1;
+    transition: color 0.15s;
+}
+
+.modal-close:hover {
+    color: var(--yu-black);
+}
+
+.btn-secondary {
+    background: #d1d5db;
+    color: var(--yu-black);
+}
+
+.btn-secondary:hover {
+    background: #c4cad4;
 }

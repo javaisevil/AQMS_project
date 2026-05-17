@@ -30,6 +30,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $selected_program = $prog_id;
         }
 
+    } elseif ($action === 'edit') {
+        $plo_id   = intval($_POST['plo_id']);
+        $code     = trim($_POST['plo_code'] ?? '');
+        $desc     = trim($_POST['description'] ?? '');
+        $category = $_POST['category'] ?? 'Knowledge';
+        $prog_id  = intval($_POST['program_id']);
+
+        if (!$code || !$desc) {
+            $error = 'PLO code and description are required.';
+        } else {
+            $stmt = $pdo->prepare(
+                'UPDATE program_learning_outcomes 
+                 SET plo_code = ?, description = ?, category = ?, program_id = ? 
+                 WHERE plo_id = ?'
+            );
+            $stmt->execute([$code, $desc, $category, $prog_id, $plo_id]);
+            $msg = 'PLO updated successfully.';
+            $selected_program = $prog_id;
+        }
+
     } elseif ($action === 'delete') {
         $plo_id = intval($_POST['plo_id']);
         $pdo->prepare('DELETE FROM program_learning_outcomes WHERE plo_id = ?')->execute([$plo_id]);
@@ -92,13 +112,20 @@ include '../includes/header.php';
                             <tr>
                                 <td><strong><?php echo htmlspecialchars($plo['plo_code']); ?></strong></td>
                                 <td><?php echo htmlspecialchars($plo['description']); ?></td>
-                                <td>
+                                <td> 
+                                    <div style="display:flex; gap:5px;"> 
+                                        <button type="button" class="btn btn-sm btn-edit"
+                                        onclick='openEditModal(<?php echo htmlspecialchars(json_encode($plo)); ?>)'>
+                                    Edit
+                                </button>
+
                                     <form method="POST" onsubmit="return confirm('Remove this PLO? Any CLO mappings to it will also be removed.')">
                                         <input type="hidden" name="action" value="delete">
                                         <input type="hidden" name="plo_id" value="<?php echo $plo['plo_id']; ?>">
                                         <input type="hidden" name="program_id" value="<?php echo $selected_program; ?>">
                                         <button type="submit" class="btn btn-sm btn-danger">Remove</button>
                                     </form>
+                                </div>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
@@ -147,5 +174,65 @@ include '../includes/header.php';
     </div>
 
 </div>
+
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <div class="card-header modal-header">
+            <h2>Edit PLO</h2>
+            <button type="button" class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <form method="POST">
+            <input type="hidden" name="action" value="edit">
+            <input type="hidden" name="plo_id" id="edit_plo_id">
+            <input type="hidden" name="program_id" value="<?php echo $selected_program; ?>">
+            <div class="form-group">
+                <label>Category</label>
+                <select name="category" id="edit_category">
+                    <option>Knowledge</option>
+                    <option>Skills</option>
+                    <option>Values</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>PLO Code</label>
+                <input type="text" name="plo_code" id="edit_plo_code" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea name="description" id="edit_description" rows="4" required></textarea>
+            </div>       
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button type="submit" class="btn btn-primary btn-full">Save changes</button>
+                <button type="button" onclick="closeModal()" class="btn btn-full btn-secondary">Cancel</button>
+            </div>   
+        </form>
+    </div>
+</div>
+
+<script>
+    function openEditModal(plo) {
+        document.getElementById('edit_plo_id').value = plo.plo_id;
+        document.getElementById('edit_plo_code').value = plo.plo_code;
+        document.getElementById('edit_description').value = plo.description;
+        document.getElementById('edit_category').value = plo.category;
+
+        document.getElementById('editModal').classList.add('modal-open');
+    }
+
+    function closeModal() {
+        document.getElementById('editModal').classList.remove('modal-open');
+    }
+
+    window.onclick = function (event) {
+        let modal = document.getElementById('editModal');
+        if (event.target == modal) {
+            closeModal();
+        }
+    }
+
+</script>
+
+                        
+                        
 
 <?php include '../includes/footer.php'; ?>
