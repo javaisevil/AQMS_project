@@ -58,6 +58,20 @@ if ($course['program_id']) {
 function h($value) {
     return htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8');
 }
+
+$jahiziah = [];
+
+$stmt = $pdo->prepare("
+    SELECT clo_id, skill_type
+    FROM jahiziah_skills
+    WHERE course_id = ?
+");
+$stmt->execute([$course_id]);
+
+foreach ($stmt->fetchAll() as $row) {
+    $jahiziah[$row['clo_id']][] = $row['skill_type'];
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -154,7 +168,17 @@ function h($value) {
 
     <h2>B. Course Learning Outcomes (CLOs)</h2>
     <table>
-        <tr><th>Code</th><th>CLO Description</th><th>Category</th><th>Aligned PLOs</th><th>Teaching Strategies</th><th>Assessment Methods</th></tr>
+<h2>B. Course Learning Outcomes (CLOs)</h2>
+    <table>
+    <tr>
+    <th>Code</th>
+    <th>CLO Description</th>
+    <th>Category</th>
+    <th>Aligned PLOs</th>
+    <th>Teaching Strategies</th>
+    <th>Assessment Methods</th>
+    <th>Jahiziah Skills</th>
+</tr>   
         <?php
         $categories = ['Knowledge' => '1.0', 'Skills' => '2.0', 'Values' => '3.0'];
         $last_cat = '';
@@ -171,6 +195,12 @@ function h($value) {
             <td><?php echo h(implode(', ', $clo_maps[$clo['clo_id']] ?? [])); ?></td>
             <td><?php echo h($clo['teaching_strategies']); ?></td>
             <td><?php echo h($clo['assessment_methods']); ?></td>
+            <?php if (!empty($jahiziah[$clo['clo_id']])): ?>
+        <?php echo h(implode(', ', $jahiziah[$clo['clo_id']])); ?>
+    <?php else: ?>
+        -
+    <?php endif; ?>
+</td>
         </tr>
         <?php endforeach; ?>
     </table>
@@ -228,7 +258,40 @@ function h($value) {
         <tr><td>Extent to which CLOs have been achieved</td><td>Faculty</td><td>Direct assessment data</td></tr>
     </table>
 
-    <h2>G. Specification Approval</h2>
+        <h2>G. PDCA Quality Improvement Log</h2>
+
+<?php
+$pdca = $pdo->prepare("
+    SELECT * FROM course_pdca
+    WHERE course_id = ?
+    ORDER BY id ASC
+");
+$pdca->execute([$course_id]);
+$pdca = $pdca->fetchAll();
+?>
+
+<table>
+    <tr>
+        <th style="width:120px;">Phase</th>
+        <th>Content</th>
+    </tr>
+
+    <?php if (empty($pdca)): ?>
+        <tr>
+            <td colspan="2">No PDCA entries recorded</td>
+        </tr>
+    <?php else: ?>
+        <?php foreach ($pdca as $p): ?>
+            <tr>
+                <td><strong><?php echo h($p['phase']); ?></strong></td>
+                <td><?php echo nl2br(h($p['content'])); ?></td>
+            </tr>
+        <?php endforeach; ?>
+    <?php endif; ?>
+</table>
+
+
+    <h2>H. Specification Approval</h2>
     <table>
         <tr><th>Council / Committee</th><td class="approval-blank"></td></tr>
         <tr><th>Reference No.</th><td class="approval-blank"></td></tr>
