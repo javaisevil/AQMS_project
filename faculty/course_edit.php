@@ -52,35 +52,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$readonly) {
         $course = $stmt->fetch();
     }
 
-    elseif ($step === 2) {
-        if (!empty($_POST['clo'])) {
-            $pdo->prepare('DELETE FROM clo_plo_mapping WHERE clo_id IN (SELECT clo_id FROM course_learning_outcomes WHERE course_id = ?)')->execute([$course_id]);
-            $pdo->prepare('DELETE FROM course_learning_outcomes WHERE course_id = ?')->execute([$course_id]);
+     elseif ($step === 2) {
 
+        if (!empty($_POST['clo'])) {
+    
+            $pdo->prepare('DELETE FROM clo_plo_mapping 
+                WHERE clo_id IN (
+                    SELECT clo_id 
+                    FROM course_learning_outcomes 
+                    WHERE course_id = ?
+                )')->execute([$course_id]);
+    
+            $pdo->prepare('DELETE FROM jahiziah_skills 
+                WHERE course_id = ?')
+                ->execute([$course_id]);
+    
+            $pdo->prepare('DELETE FROM course_learning_outcomes 
+                WHERE course_id = ?')
+                ->execute([$course_id]);
+    
             foreach ($_POST['clo'] as $row) {
+    
                 $desc = trim($row['description'] ?? '');
                 $code = trim($row['code'] ?? '');
                 $cat  = $row['category'] ?? 'Knowledge';
                 $ts   = trim($row['teaching_strategies'] ?? '');
                 $am   = trim($row['assessment_methods'] ?? '');
+    
                 if (!$desc) continue;
-
-                $ins = $pdo->prepare(
-                    'INSERT INTO course_learning_outcomes (course_id, clo_code, description, category, teaching_strategies, assessment_methods)
-                     VALUES (?, ?, ?, ?, ?, ?)'
-                );
-                $ins->execute([$course_id, $code, $desc, $cat, $ts, $am]);
+    
+                $ins = $pdo->prepare('
+                    INSERT INTO course_learning_outcomes
+                    (
+                        course_id,
+                        clo_code,
+                        description,
+                        category,
+                        teaching_strategies,
+                        assessment_methods
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ');
+    
+                $ins->execute([
+                    $course_id,
+                    $code,
+                    $desc,
+                    $cat,
+                    $ts,
+                    $am
+                ]);
+    
                 $clo_id = $pdo->lastInsertId();
-
+    
+                if (!empty($row['jahiziah'])) {
+    
+                    foreach ($row['jahiziah'] as $skill) {
+    
+                        $pdo->prepare('
+                            INSERT INTO jahiziah_skills
+                            (course_id, clo_id, skill_type)
+                            VALUES (?, ?, ?)
+                        ')->execute([
+                            $course_id,
+                            $clo_id,
+                            $skill
+                        ]);
+                    }
+                }
+    
                 if (!empty($row['plos']) && is_array($row['plos'])) {
+    
                     foreach ($row['plos'] as $plo_id) {
-                        $pdo->prepare('INSERT IGNORE INTO clo_plo_mapping (clo_id, plo_id) VALUES (?, ?)')
-                            ->execute([$clo_id, intval($plo_id)]);
+    
+                        $pdo->prepare('
+                            INSERT IGNORE INTO clo_plo_mapping
+                            (clo_id, plo_id)
+                            VALUES (?, ?)
+                        ')->execute([
+                            $clo_id,
+                            intval($plo_id)
+                        ]);
                     }
                 }
             }
         }
-        $msg = 'CLOs and PLO mapping saved.';
+    
+        $msg = 'CLOs, PLO mappings, and Jahiziah skills saved.';
     }
 
     elseif ($step === 3) {
@@ -161,6 +219,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$readonly) {
     }
 }
 
+elseif ($step === 7) {
+
+        $pdo->prepare('DELETE FROM course_pdca WHERE course_id = ?')
+            ->execute([$course_id]);
+    
+        if (!empty($_POST['pdca'])) {
+            foreach ($_POST['pdca'] as $row) {
+    
+                $phase = trim($row['phase'] ?? '');
+                $content = trim($row['content'] ?? '');
+    
+                if (!$phase && !$content) continue;
+    
+                $pdo->prepare('
+                    INSERT INTO course_pdca (course_id, phase, content, created_at)
+                    VALUES (?, ?, ?, NOW())
+                ')->execute([
+                    $course_id,
+                    $phase,
+                    $content
+                ]);
+            }
+        }
+        $msg = 'PDCA saved.';
+
+    }
+}
+
 // get page data
 
 $clos = $pdo->prepare('SELECT * FROM course_learning_outcomes WHERE course_id = ? ORDER BY category, clo_code');
@@ -206,6 +292,19 @@ $res    = $pdo->prepare('SELECT * FROM resources WHERE course_id = ? ORDER BY ca
 $res->execute([$course_id]);
 $res    = $res->fetchAll();
 
+$jahiziah = [];
+
+$stmt = $pdo->prepare("
+    SELECT clo_id, skill_type
+    FROM jahiziah_skills
+    WHERE course_id = ?
+");
+$stmt->execute([$course_id]);
+
+foreach ($stmt->fetchAll() as $row) {
+    $jahiziah[$row['clo_id']][] = $row['skill_type'];
+}
+
 $step_labels = [
     1 => 'Course Info',
     2 => 'CLOs & PLO Mapping',
@@ -213,7 +312,8 @@ $step_labels = [
     4 => 'Teaching Hours',
     5 => 'Topics',
     6 => 'Resources',
-    7 => 'Review & Submit'
+    7 => 'PDCA Quality Log',
+    8 => 'Review & Submit'
 ];
 
 include '../includes/header.php';
@@ -383,6 +483,18 @@ include '../includes/header.php';
                 </td>
                 <td><input type="text" name="clo[0][teaching_strategies]"></td>
                 <td><input type="text" name="clo[0][assessment_methods]"></td>
+                
+                <div style="display:flex; gap:14px; flex-wrap:wrap;">
+        <?php foreach (['Digital', 'Communication', 'Teamwork', 'Ethics'] as $skill): ?>
+            <label style="display:flex; align-items:center; gap:5px; margin:0; font-weight:400;">
+                <input type="checkbox"
+                       name="clo[0][jahiziah][]"
+                       value="<?php echo $skill; ?>">
+                <span><?php echo $skill; ?></span>
+            </label>
+        <?php endforeach; ?>
+    </div>
+</td>
                 <?php foreach ($plos as $plo): ?>
                     <td><input type="checkbox" name="clo[0][plos][]" value="<?php echo $plo['plo_id']; ?>"></td>
                 <?php endforeach; ?>
@@ -402,7 +514,19 @@ include '../includes/header.php';
                 </td>
                 <td><input type="text" name="clo[<?php echo $i; ?>][teaching_strategies]" value="<?php echo h($clo['teaching_strategies']); ?>"></td>
                 <td><input type="text" name="clo[<?php echo $i; ?>][assessment_methods]" value="<?php echo h($clo['assessment_methods']); ?>"></td>
-                <?php foreach ($plos as $plo): ?>
+                
+    <?php foreach (['Digital', 'Communication', 'Teamwork', 'Ethics'] as $skill): ?>
+        <label style="display:block; font-weight:400;">
+            <input type="checkbox"
+                   name="clo[<?php echo $i; ?>][jahiziah][]"
+                   value="<?php echo $skill; ?>"
+                   <?php echo (!empty($jahiziah[$clo['clo_id']]) && in_array($skill, $jahiziah[$clo['clo_id']])) ? 'checked' : ''; ?>>
+            <?php echo $skill; ?>
+        </label>
+    <?php endforeach; ?>
+</td>
+        
+                    <?php foreach ($plos as $plo): ?>
                     <td><input type="checkbox" name="clo[<?php echo $i; ?>][plos][]"
                                value="<?php echo $plo['plo_id']; ?>"
                                <?php echo isset($clo_maps[$clo['clo_id']][$plo['plo_id']]) ? 'checked' : ''; ?>></td>
@@ -430,6 +554,20 @@ include '../includes/header.php';
             '<td><select name="clo['+i+'][category]">'+catOpts+'</select></td>' +
             '<td><input type="text" name="clo['+i+'][teaching_strategies]"></td>' +
             '<td><input type="text" name="clo['+i+'][assessment_methods]"></td>' +
+
+'<td>' +
+'<div style="display:flex; gap:14px; flex-wrap:wrap;">' +
+
+['Digital','Communication','Teamwork','Ethics'].map(skill =>
+    '<label style="display:flex; align-items:center; gap:5px; margin:0; font-weight:400;">' +
+    '<input type="checkbox" name="clo['+i+'][jahiziah][]" value="'+skill+'">' +
+    '<span>'+skill+'</span>' +
+    '</label>'
+).join('') +
+
+'</div>' +
+'</td>' +
+            
             ploBoxes +
             '<td><button type="button" class="icon-btn" onclick="this.closest(\'tr\').remove()">✕</button></td>';
         document.querySelector('#clo-table tbody').appendChild(tr);
@@ -681,9 +819,105 @@ include '../includes/header.php';
     }
     </script>
 
-<?php elseif ($step === 7): ?>
+                <?php elseif ($step === 7): ?>
 
-    <div class="card-header"><h2>Step 7 — Final Review & Submission</h2></div>
+<div class="card-header">
+    <h2>Step 7 — PDCA Quality Improvement Log</h2>
+</div>
+
+
+<table id="pdca-table">
+    <thead>
+        <tr>
+            <th style="width:120px;">Phase</th>
+            <th>Content</th>
+            <?php if (!$readonly): ?>
+            <th style="width:40px;"></th>
+            <?php endif; ?>
+        </tr>
+    </thead>
+    <?php
+$pdca_items = $pdo->prepare('SELECT * FROM course_pdca WHERE course_id = ? ORDER BY id ASC');
+$pdca_items->execute([$course_id]);
+$pdca_items = $pdca_items->fetchAll();
+?>
+
+    <tbody>
+        <?php foreach ($pdca_items as $i => $p): ?>
+        <tr>
+            <td>
+                <select name="pdca[<?php echo $i; ?>][phase]">
+                    <?php foreach (['Plan','Do','Check','Act'] as $ph): ?>
+                        <option <?php echo $p['phase'] === $ph ? 'selected' : ''; ?>>
+                            <?php echo $ph; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </td>
+
+            <td>
+                <textarea name="pdca[<?php echo $i; ?>][content]" rows="2"><?php echo h($p['content']); ?></textarea>
+            </td>
+
+            <?php if (!$readonly): ?>
+            <td><button type="button" onclick="this.closest('tr').remove()">✕</button></td>
+            <?php endif; ?>
+        </tr>
+        <?php endforeach; ?>
+
+        <?php if (empty($pdca_items)): ?>
+        <tr>
+            <td>
+                <select name="pdca[0][phase]">
+                    <option>Plan</option>
+                    <option>Do</option>
+                    <option>Check</option>
+                    <option>Act</option>
+                </select>
+            </td>
+            <td><textarea name="pdca[0][content]" rows="2"></textarea></td>
+            <?php if (!$readonly): ?>
+            <td><button type="button" onclick="this.closest('tr').remove()">✕</button></td>
+            <?php endif; ?>
+        </tr>
+        <?php endif; ?>
+    </tbody>
+</table>
+
+<?php if (!$readonly): ?>
+<button type="button" class="btn btn-outline btn-sm" onclick="addPDCA()">+ Add PDCA Entry</button>
+<?php endif; ?>
+
+<script>
+var pdcaCount = <?php echo max(count($pdca_items), 1); ?>;
+
+function addPDCA() {
+    var i = pdcaCount++;
+
+    var tr = document.createElement('tr');
+
+    tr.innerHTML =
+        '<td>' +
+        '<select name="pdca['+i+'][phase]">' +
+        '<option>Plan</option>' +
+        '<option>Do</option>' +
+        '<option>Check</option>' +
+        '<option>Act</option>' +
+        '</select>' +
+        '</td>' +
+
+        '<td><textarea name="pdca['+i+'][content]" rows="2"></textarea></td>' +
+
+        '<td><button type="button" onclick="this.closest(\'tr\').remove()">✕</button></td>';
+
+    document.querySelector('#pdca-table tbody').appendChild(tr);
+}
+</script>
+
+
+<?php elseif ($step === 8): ?>
+
+    <div class="card-header"><h2>Step 8 — Final Review & Submission</h2></div>
 
     <?php
     $has_clos    = !empty($clos);
