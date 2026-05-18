@@ -7,7 +7,7 @@ $yu_courses = require __DIR__ . '/../includes/yu_courses.php';
 
 $course_id = intval($_GET['id'] ?? 0);
 $step      = intval($_GET['step'] ?? 1);
-if ($step < 1 || $step > 7) $step = 1;
+if ($step < 1 || $step > 8) $step = 1;
 
 $stmt = $pdo->prepare('SELECT * FROM course_specs WHERE course_id = ? AND faculty_id = ?');
 $stmt->execute([$course_id, $_SESSION['user_id']]);
@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$readonly) {
         $course = $stmt->fetch();
     }
 
-     elseif ($step === 2) {
+    elseif ($step === 2) {
 
         if (!empty($_POST['clo'])) {
     
@@ -217,9 +217,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$readonly) {
         header('Location: course_edit.php?id=' . $course_id . '&step=' . ($step + 1));
         exit();
     }
-}
-
-elseif ($step === 7) {
+    
+    elseif ($step === 7) {
 
         $pdo->prepare('DELETE FROM course_pdca WHERE course_id = ?')
             ->execute([$course_id]);
@@ -246,6 +245,7 @@ elseif ($step === 7) {
 
     }
 }
+
 
 // get page data
 
@@ -291,6 +291,7 @@ $topics = $topics->fetchAll();
 $res    = $pdo->prepare('SELECT * FROM resources WHERE course_id = ? ORDER BY category');
 $res->execute([$course_id]);
 $res    = $res->fetchAll();
+
 
 $jahiziah = [];
 
@@ -463,6 +464,7 @@ include '../includes/header.php';
                 <th style="width:110px;">Category</th>
                 <th style="min-width:140px;">Teaching Strategies</th>
                 <th style="min-width:140px;">Assessment Methods</th>
+                <th style="min-width:170px;">Jahiziah Skills</th>
                 <?php foreach ($plos as $plo): ?>
                     <th style="width:55px;" title="<?php echo h($plo['description']); ?>">
                         <?php echo h($plo['plo_code']); ?>
@@ -483,8 +485,9 @@ include '../includes/header.php';
                 </td>
                 <td><input type="text" name="clo[0][teaching_strategies]"></td>
                 <td><input type="text" name="clo[0][assessment_methods]"></td>
-                
-                <div style="display:flex; gap:14px; flex-wrap:wrap;">
+
+                <td>
+    <div style="display:flex; gap:14px; flex-wrap:wrap;">
         <?php foreach (['Digital', 'Communication', 'Teamwork', 'Ethics'] as $skill): ?>
             <label style="display:flex; align-items:center; gap:5px; margin:0; font-weight:400;">
                 <input type="checkbox"
@@ -495,6 +498,7 @@ include '../includes/header.php';
         <?php endforeach; ?>
     </div>
 </td>
+
                 <?php foreach ($plos as $plo): ?>
                     <td><input type="checkbox" name="clo[0][plos][]" value="<?php echo $plo['plo_id']; ?>"></td>
                 <?php endforeach; ?>
@@ -514,7 +518,8 @@ include '../includes/header.php';
                 </td>
                 <td><input type="text" name="clo[<?php echo $i; ?>][teaching_strategies]" value="<?php echo h($clo['teaching_strategies']); ?>"></td>
                 <td><input type="text" name="clo[<?php echo $i; ?>][assessment_methods]" value="<?php echo h($clo['assessment_methods']); ?>"></td>
-                
+
+                <td>
     <?php foreach (['Digital', 'Communication', 'Teamwork', 'Ethics'] as $skill): ?>
         <label style="display:block; font-weight:400;">
             <input type="checkbox"
@@ -525,8 +530,8 @@ include '../includes/header.php';
         </label>
     <?php endforeach; ?>
 </td>
-        
-                    <?php foreach ($plos as $plo): ?>
+
+                <?php foreach ($plos as $plo): ?>
                     <td><input type="checkbox" name="clo[<?php echo $i; ?>][plos][]"
                                value="<?php echo $plo['plo_id']; ?>"
                                <?php echo isset($clo_maps[$clo['clo_id']][$plo['plo_id']]) ? 'checked' : ''; ?>></td>
@@ -555,7 +560,7 @@ include '../includes/header.php';
             '<td><input type="text" name="clo['+i+'][teaching_strategies]"></td>' +
             '<td><input type="text" name="clo['+i+'][assessment_methods]"></td>' +
 
-'<td>' +
+            '<td>' +
 '<div style="display:flex; gap:14px; flex-wrap:wrap;">' +
 
 ['Digital','Communication','Teamwork','Ethics'].map(skill =>
@@ -567,7 +572,7 @@ include '../includes/header.php';
 
 '</div>' +
 '</td>' +
-            
+
             ploBoxes +
             '<td><button type="button" class="icon-btn" onclick="this.closest(\'tr\').remove()">✕</button></td>';
         document.querySelector('#clo-table tbody').appendChild(tr);
@@ -819,7 +824,7 @@ include '../includes/header.php';
     }
     </script>
 
-                <?php elseif ($step === 7): ?>
+<?php elseif ($step === 7): ?>
 
 <div class="card-header">
     <h2>Step 7 — PDCA Quality Improvement Log</h2>
@@ -913,6 +918,8 @@ function addPDCA() {
     document.querySelector('#pdca-table tbody').appendChild(tr);
 }
 </script>
+
+
 
 
 <?php elseif ($step === 8): ?>
@@ -1017,7 +1024,7 @@ function addPDCA() {
 
 <?php endif; ?>
 
-<?php if ($step < 7 && !$readonly): ?>
+<?php if ($step < 8 && !$readonly): ?>
     <div style="display:flex; gap:10px; margin-top:24px; padding-top:18px; border-top:1px solid var(--border);">
         <button type="submit" name="save" class="btn btn-outline">Save</button>
         <button type="submit" name="next" class="btn btn-primary">Save &amp; Next →</button>
