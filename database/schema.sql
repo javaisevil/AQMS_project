@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:8889
--- Generation Time: May 17, 2026 at 09:43 PM
+-- Generation Time: May 18, 2026 at 12:56 PM
 -- Server version: 8.0.44
 -- PHP Version: 8.3.30
 
@@ -113,6 +113,20 @@ CREATE TABLE `course_learning_outcomes` (
   `category` enum('Knowledge','Skills','Values') NOT NULL,
   `teaching_strategies` text,
   `assessment_methods` text
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `course_pdca`
+--
+
+CREATE TABLE `course_pdca` (
+  `id` int NOT NULL,
+  `course_id` int NOT NULL,
+  `stage` enum('Plan','Do','Check','Act') NOT NULL,
+  `description` text,
+  `cycle_date` date DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
@@ -395,6 +409,13 @@ ALTER TABLE `course_learning_outcomes`
   ADD KEY `course_id` (`course_id`);
 
 --
+-- Indexes for table `course_pdca`
+--
+ALTER TABLE `course_pdca`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `course_id` (`course_id`);
+
+--
 -- Indexes for table `course_specs`
 --
 ALTER TABLE `course_specs`
@@ -512,6 +533,12 @@ ALTER TABLE `course_learning_outcomes`
   MODIFY `clo_id` int NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `course_pdca`
+--
+ALTER TABLE `course_pdca`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `course_specs`
 --
 ALTER TABLE `course_specs`
@@ -619,6 +646,12 @@ ALTER TABLE `contact_hours`
 --
 ALTER TABLE `course_learning_outcomes`
   ADD CONSTRAINT `course_learning_outcomes_ibfk_1` FOREIGN KEY (`course_id`) REFERENCES `course_specs` (`course_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `course_pdca`
+--
+ALTER TABLE `course_pdca`
+  ADD CONSTRAINT `course_pdca_ibfk_1` FOREIGN KEY (`course_id`) REFERENCES `course_specs` (`course_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `course_specs`
