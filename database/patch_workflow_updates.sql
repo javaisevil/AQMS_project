@@ -14,10 +14,15 @@ ALTER TABLE `course_specs`
   MODIFY `status` enum('draft','pending_hod','returned_by_hod','pending_qa','returned_by_qa','approved','archived') DEFAULT 'draft';
 
 ALTER TABLE `course_learning_outcomes`
-  MODIFY `category` enum('Knowledge and Understanding','Skills','Values, Autonomy, and Responsibility') NOT NULL;
+  MODIFY `category` varchar(100) NOT NULL;
 
 ALTER TABLE `program_learning_outcomes`
-  MODIFY `category` enum('Knowledge and Understanding','Skills','Values, Autonomy, and Responsibility') NOT NULL;
+  MODIFY `category` varchar(100) NOT NULL;
+
+UPDATE `program_learning_outcomes` SET `category` = 'Knowledge and Understanding' WHERE `category` = 'Knowledge';
+UPDATE `program_learning_outcomes` SET `category` = 'Values, Autonomy, and Responsibility' WHERE `category` = 'Values';
+UPDATE `course_learning_outcomes` SET `category` = 'Knowledge and Understanding' WHERE `category` = 'Knowledge';
+UPDATE `course_learning_outcomes` SET `category` = 'Values, Autonomy, and Responsibility' WHERE `category` = 'Values';
 
 DROP TABLE IF EXISTS `course_pdca`;
 CREATE TABLE `course_pdca` (
@@ -67,15 +72,10 @@ CREATE TABLE `course_approval` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 ALTER TABLE `resources`
-  MODIFY `category` enum('Essential References','Supportive References','Electronic Materials','Other Learning Materials') NOT NULL;
+  MODIFY `category` varchar(100) NOT NULL;
 
 ALTER TABLE `teaching_modes`
-  MODIFY `mode_type` enum('Traditional classroom','E-learning','Hybrid','Distance learning') NOT NULL;
+  MODIFY `mode_type` varchar(100) NOT NULL;
 
 ALTER TABLE `contact_hours`
-  MODIFY `activity_type` enum('Lectures','Laboratory/Studio','Field','Tutorial','Others') NOT NULL;
-
-UPDATE `program_learning_outcomes` SET `category` = 'Knowledge and Understanding' WHERE `category` = 'Knowledge';
-UPDATE `program_learning_outcomes` SET `category` = 'Values, Autonomy, and Responsibility' WHERE `category` = 'Values';
-UPDATE `course_learning_outcomes` SET `category` = 'Knowledge and Understanding' WHERE `category` = 'Knowledge';
-UPDATE `course_learning_outcomes` SET `category` = 'Values, Autonomy, and Responsibility' WHERE `category` = 'Values';
+  MODIFY `activity_type` varchar(100) NOT NULL;
