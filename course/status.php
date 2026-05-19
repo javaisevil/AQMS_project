@@ -13,11 +13,7 @@ if (!$course) {
     exit();
 }
 
-$logs = $pdo->prepare(
-    'SELECT al.*, u.full_name, u.role FROM approval_log al
-     JOIN user u ON al.user_id = u.user_id
-     WHERE al.course_id = ? ORDER BY al.created_at ASC'
-);
+$logs = $pdo->prepare('SELECT al.*, u.full_name, u.role FROM approval_log al JOIN user u ON al.user_id = u.user_id WHERE al.course_id = ? ORDER BY al.created_at ASC');
 $logs->execute([$course_id]);
 $logs = $logs->fetchAll();
 
@@ -25,20 +21,28 @@ $page_title = 'Status: ' . $course['course_title'];
 include '../includes/header.php';
 ?>
 
-<div class="card" style="max-width:700px;">
+<div class="card" style="max-width:850px;">
     <div class="card-header">
         <div>
             <h2><?php echo htmlspecialchars($course['course_title']); ?></h2>
             <small style="color:var(--text-muted);">
-                <?php echo htmlspecialchars($course['course_code']); ?> &middot;
-                Faculty: <?php echo htmlspecialchars($course['faculty_name']); ?>
+                <?php echo htmlspecialchars($course['course_code']); ?> - Faculty: <?php echo htmlspecialchars($course['faculty_name']); ?>
             </small>
         </div>
         <span class="status-badge status-<?php echo $course['status']; ?>" style="font-size:13px; padding:5px 14px;">
-            <?php echo str_replace('_', ' ', ucfirst($course['status'])); ?>
+            <?php echo ucwords(str_replace('_', ' ', $course['status'])); ?>
         </span>
     </div>
 
+    <table style="margin-bottom:18px;">
+        <tr><td style="width:190px; color:var(--text-muted);">Current Status</td><td><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $course['status']))); ?></td></tr>
+        <tr><td style="color:var(--text-muted);">Due Date</td><td><?php echo htmlspecialchars($course['due_date'] ?? 'Not set'); ?></td></tr>
+        <tr><td style="color:var(--text-muted);">Submitted At</td><td><?php echo htmlspecialchars($course['submitted_at'] ?? 'Not submitted'); ?></td></tr>
+        <tr><td style="color:var(--text-muted);">Deadline Status</td><td><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $course['deadline_status'] ?? 'not_due'))); ?></td></tr>
+        <tr><td style="color:var(--text-muted);">Last Updated</td><td><?php echo htmlspecialchars($course['updated_at']); ?></td></tr>
+    </table>
+
+    <div class="card-header" style="padding-left:0;"><h2>Status History</h2></div>
     <?php if (empty($logs)): ?>
         <p style="color:var(--text-muted); padding:20px 0;">No activity recorded yet.</p>
     <?php else: ?>
@@ -46,18 +50,14 @@ include '../includes/header.php';
             <?php foreach ($logs as $log): ?>
             <li>
                 <div class="timeline-date">
-                    <?php echo date('M d, Y — H:i', strtotime($log['created_at'])); ?>
-                    &middot; <?php echo htmlspecialchars($log['full_name']); ?>
+                    <?php echo date('M d, Y H:i', strtotime($log['created_at'])); ?>
+                    - <?php echo htmlspecialchars($log['full_name']); ?>
                     <span class="role-badge role-<?php echo $log['role']; ?>" style="margin-left:6px;"><?php echo strtoupper($log['role']); ?></span>
                 </div>
                 <div class="timeline-text">
-                    <span class="status-badge status-<?php echo $log['from_status']; ?>">
-                        <?php echo $log['from_status'] ? str_replace('_', ' ', ucfirst($log['from_status'])) : 'Created'; ?>
-                    </span>
-                    &rarr;
-                    <span class="status-badge status-<?php echo $log['to_status']; ?>">
-                        <?php echo str_replace('_', ' ', ucfirst($log['to_status'])); ?>
-                    </span>
+                    <?php echo htmlspecialchars($log['from_status'] ? ucwords(str_replace('_', ' ', $log['from_status'])) : 'Created'); ?>
+                    to
+                    <?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $log['to_status']))); ?>
                 </div>
                 <?php if ($log['comment']): ?>
                     <div class="timeline-comment">"<?php echo htmlspecialchars($log['comment']); ?>"</div>
