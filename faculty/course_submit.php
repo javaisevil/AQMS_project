@@ -5,7 +5,7 @@ require_once '../db.php';
 
 $course_id = intval($_GET['id'] ?? 0);
 
-$stmt = $pdo->prepare('SELECT * FROM course_specs WHERE course_id = ? AND faculty_id = ? AND status = "draft"');
+$stmt = $pdo->prepare('SELECT * FROM course_specs WHERE course_id = ? AND faculty_id = ? AND status IN ("draft", "returned_by_hod", "returned_by_qa")');
 $stmt->execute([$course_id, $_SESSION['user_id']]);
 $course = $stmt->fetch();
 
@@ -14,7 +14,6 @@ if (!$course) {
     exit();
 }
 
-// Integrity gatekeeping
 $errors = [];
 
 if (empty($course['course_description']) || empty($course['objectives'])) {
@@ -38,24 +37,37 @@ if (empty($clo_ids)) {
     }
 }
 
-$has_assess = $pdo->prepare('SELECT COUNT(*) FROM assessments WHERE course_id = ?');
-$has_assess->execute([$course_id]);
-if ($has_assess->fetchColumn() == 0) {
+$assess = $pdo->prepare('SELECT percentage FROM assessments WHERE course_id = ?');
+$assess->execute([$course_id]);
+$assessments = $assess->fetchAll(PDO::FETCH_COLUMN);
+
+if (empty($assessments)) {
     $errors[] = 'At least one assessment activity is required (Step 3).';
+} else {
+    $total = array_sum(array_map('floatval', $assessments));
+    if (abs($total - 100) >= 0.01) {
+        $errors[] = 'Assessment percentages must total 100% (Step 3).';
+    }
 }
 
 if (!empty($errors)) {
     $_SESSION['submit_errors'] = $errors;
-    header('Location: course_edit.php?id=' . $course_id . '&step=7');
+    header('Location: course_edit.php?id=' . $course_id . '&step=8');
     exit();
 }
 
-// All checks passed — transition state
-$pdo->prepare('UPDATE course_specs SET status = "pending_hod" WHERE course_id = ?')->execute([$course_id]);
+$from_status = $course['status'];
+$deadline_status = 'not_due';
+if (!empty($course['due_date'])) {
+    $deadline_status = date('Y-m-d') <= $course['due_date'] ? 'on_time' : 'late';
+}
+
+$pdo->prepare('UPDATE course_specs SET status = "pending_hod", submitted_at = NOW(), deadline_status = ? WHERE course_id = ?')
+    ->execute([$deadline_status, $course_id]);
 
 $pdo->prepare(
-    'INSERT INTO approval_log (course_id, user_id, from_status, to_status, comment) VALUES (?, ?, "draft", "pending_hod", "Submitted by faculty for HoD review")'
-)->execute([$course_id, $_SESSION['user_id']]);
+    'INSERT INTO approval_log (course_id, user_id, from_status, to_status, comment) VALUES (?, ?, ?, "pending_hod", "Submitted by faculty for HoD review")'
+)->execute([$course_id, $_SESSION['user_id'], $from_status]);
 
 header('Location: dashboard.php?submitted=1');
 exit();
