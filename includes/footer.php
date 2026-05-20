@@ -106,11 +106,12 @@
             return grid;
         }
 
-        function makeCloCard(index, category, row) {
+        function makeCloCard(index, category, row, defaultCode) {
             const card = document.createElement('div');
             card.className = 'clo-card';
 
-            const codeValue = row ? (row.querySelector('input[name*="[code]"]')?.value || '') : '';
+            const savedCode = row ? (row.querySelector('input[name*="[code]"]')?.value || '') : '';
+            const codeValue = savedCode || defaultCode || '';
             const descValue = row ? (row.querySelector('input[name*="[description]"]')?.value || '') : '';
             const teachValue = row ? (row.querySelector('input[name*="[teaching_strategies]"]')?.value || '') : '';
             const assessValue = row ? (row.querySelector('input[name*="[assessment_methods]"]')?.value || '') : '';
@@ -164,20 +165,12 @@
             const initial = matching.length ? matching : [null, null];
             initial.forEach((row, i) => {
                 const idx = row ? getRowIndex(row) : (nextIndex++);
-                const card = makeCloCard(idx, section.category, row);
-                if (!row) {
-                    const codeInput = card.querySelector('input[name*="[code]"]');
-                    if (codeInput) codeInput.value = section.prefix + '.' + (i + 1);
-                }
-                box.appendChild(card);
+                box.appendChild(makeCloCard(idx, section.category, row, section.prefix + '.' + (i + 1)));
             });
 
             add.addEventListener('click', function () {
                 const count = box.querySelectorAll('.clo-card').length + 1;
-                const card = makeCloCard(nextIndex++, section.category, null);
-                const codeInput = card.querySelector('input[name*="[code]"]');
-                if (codeInput) codeInput.value = section.prefix + '.' + count;
-                box.appendChild(card);
+                box.appendChild(makeCloCard(nextIndex++, section.category, null, section.prefix + '.' + count));
             });
 
             builder.appendChild(box);
