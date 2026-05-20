@@ -7,7 +7,9 @@ $page_title = 'Assign Course Specification';
 $msg = '';
 $error = '';
 
-$programs = $pdo->query('SELECT * FROM program_specs ORDER BY program_name')->fetchAll();
+$yu_academics = require __DIR__ . '/../includes/yu_academics.php';
+$institution = $yu_academics['institution'];
+$programs = $pdo->query('SELECT * FROM program_specs ORDER BY college, qualification_level, program_name')->fetchAll();
 $faculty = $pdo->query('SELECT * FROM user WHERE role = "faculty" ORDER BY full_name, username')->fetchAll();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -41,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $code,
             $program['department'] ?? '',
             $program['college'] ?? '',
-            $program['institution'] ?? 'Al Yamamah University',
+            $institution,
             $credits ?: null,
             $course_type,
             $required,
@@ -61,17 +63,22 @@ include '../includes/header.php';
 <?php if ($msg): ?><div class="alert alert-success"><?php echo htmlspecialchars($msg); ?></div><?php endif; ?>
 <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 
-<div style="max-width:760px;">
+<div style="max-width:820px;">
 <div class="card">
     <div class="card-header"><h2>Assign a Course Specification</h2></div>
     <form method="POST">
         <div class="form-row">
             <div class="form-group">
                 <label>Program</label>
-                <select name="program_id" required>
+                <select name="program_id" id="program_id" required onchange="fillProgramInfo(this)">
                     <option value="">Select program</option>
                     <?php foreach ($programs as $p): ?>
-                    <option value="<?php echo $p['program_id']; ?>"><?php echo htmlspecialchars($p['program_name']); ?></option>
+                    <option value="<?php echo $p['program_id']; ?>"
+                            data-college="<?php echo htmlspecialchars($p['college'] ?? ''); ?>"
+                            data-department="<?php echo htmlspecialchars($p['department'] ?? ''); ?>"
+                            data-institution="<?php echo htmlspecialchars($institution); ?>">
+                        <?php echo htmlspecialchars(($p['program_code'] ? $p['program_code'] . ' - ' : '') . $p['program_name']); ?>
+                    </option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -85,6 +92,12 @@ include '../includes/header.php';
                 </select>
             </div>
         </div>
+
+        <div class="form-row">
+            <div class="form-group"><label>College</label><input type="text" id="college" readonly></div>
+            <div class="form-group"><label>Department</label><input type="text" id="department" readonly></div>
+        </div>
+        <div class="form-group"><label>Institution</label><input type="text" id="institution" value="<?php echo htmlspecialchars($institution); ?>" readonly></div>
 
         <div class="form-row">
             <div class="form-group"><label>Course Title</label><input type="text" name="course_title" required></div>
@@ -117,5 +130,18 @@ include '../includes/header.php';
     </form>
 </div>
 </div>
+
+<script>
+function fillProgramInfo(select) {
+    const item = select.options[select.selectedIndex];
+    document.getElementById('college').value = item.dataset.college || '';
+    document.getElementById('department').value = item.dataset.department || '';
+    document.getElementById('institution').value = item.dataset.institution || 'Al Yamamah University';
+}
+document.addEventListener('DOMContentLoaded', function () {
+    const select = document.getElementById('program_id');
+    if (select) fillProgramInfo(select);
+});
+</script>
 
 <?php include '../includes/footer.php'; ?>
