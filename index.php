@@ -14,6 +14,9 @@ switch ($_SESSION['role']) {
     case 'hod':
         header('Location: ' . BASE_URL . '/hod/dashboard.php');
         break;
+    case 'dean':
+        header('Location: ' . BASE_URL . '/dean/dashboard.php');
+        break;
     case 'qa':
         header('Location: ' . BASE_URL . '/qa/dashboard.php');
         break;
