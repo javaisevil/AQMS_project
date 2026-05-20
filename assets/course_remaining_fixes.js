@@ -5,6 +5,40 @@
     const params = new URLSearchParams(window.location.search);
     const step = params.get('step') || '1';
 
+    const style = document.createElement('style');
+    style.textContent = `
+        .other-box { display: none; margin-top: 8px; }
+        .other-box.show { display: block !important; }
+        .clo-link-warning { display: block; color: #b45309; font-size: 12px; line-height: 1.4; }
+    `;
+    document.head.appendChild(style);
+
+    window.toggleOther = function (select) {
+        const box = select.parentElement.querySelector('.other-box');
+        if (!box) return;
+        if (select.value === 'Other') {
+            box.classList.add('show');
+            box.style.display = 'block';
+        } else {
+            box.classList.remove('show');
+            box.style.display = 'none';
+            box.value = '';
+        }
+    };
+
+    function syncAllOtherBoxes(root) {
+        (root || document).querySelectorAll('select').forEach(select => {
+            const box = select.parentElement ? select.parentElement.querySelector('.other-box') : null;
+            if (!box) return;
+            box.placeholder = 'Please specify';
+            window.toggleOther(select);
+            if (!select.dataset.otherBound) {
+                select.dataset.otherBound = '1';
+                select.addEventListener('change', function () { window.toggleOther(this); });
+            }
+        });
+    }
+
     function makeSelectFromInput(input, options, placeholder, otherPlaceholder) {
         if (!input || input.dataset.selectFixed === '1') return;
         input.dataset.selectFixed = '1';
@@ -18,8 +52,9 @@
         hidden.type = 'hidden';
         hidden.name = input.name;
         other.type = 'text';
-        other.placeholder = otherPlaceholder || 'Specify other';
+        other.placeholder = otherPlaceholder || 'Please specify';
         other.className = 'other-box';
+        other.style.display = 'none';
 
         const empty = document.createElement('option');
         empty.value = '';
@@ -40,15 +75,18 @@
             select.value = 'Other';
             other.value = oldValue;
             other.classList.add('show');
+            other.style.display = 'block';
             hidden.value = oldValue;
         }
 
         function sync() {
             if (select.value === 'Other') {
                 other.classList.add('show');
+                other.style.display = 'block';
                 hidden.value = other.value.trim();
             } else {
                 other.classList.remove('show');
+                other.style.display = 'none';
                 hidden.value = select.value;
             }
         }
@@ -59,6 +97,7 @@
         wrapper.appendChild(other);
         wrapper.appendChild(hidden);
         input.replaceWith(wrapper);
+        sync();
     }
 
     function fixNumberedTable(table, inputSelector, totalClass, totalSuffix) {
@@ -93,6 +132,25 @@
         renumber();
     }
 
+    function fixEmptyLinkedCloCells() {
+        const table = document.getElementById('assess-table');
+        if (!table) return;
+
+        const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim().toLowerCase());
+        let index = headers.findIndex(text => text.includes('linked clo'));
+        if (index < 0) index = 3;
+
+        table.querySelectorAll('tbody tr:not(.assessment-total-row)').forEach(row => {
+            const cell = row.children[index];
+            if (!cell) return;
+            const hasCloInput = cell.querySelector('input[type="checkbox"]');
+            const hasText = cell.textContent.trim().length > 0;
+            if (!hasCloInput && !hasText) {
+                cell.innerHTML = '<span class="clo-link-warning">Save Section B CLOs first, then return here to link assessment activities.</span>';
+            }
+        });
+    }
+
     if (step === '1') {
         const hourInputs = Array.from(document.querySelectorAll('input[name^="hours"][name$="[hours]"]'));
         if (hourInputs.length) {
@@ -119,9 +177,21 @@
 
         const options = ['Written test', 'Oral test', 'Oral presentation', 'Group project', 'Essay', 'Other'];
         table.querySelectorAll('input[name*="[activity_name]"]').forEach(input => {
-            makeSelectFromInput(input, options, '-- Select assessment activity --', 'Specify other assessment activity');
+            makeSelectFromInput(input, options, '-- Select assessment activity --', 'Please specify');
         });
+
+        const oldAddAssessRow = window.addAssessRow;
+        window.addAssessRow = function () {
+            if (typeof oldAddAssessRow === 'function') oldAddAssessRow();
+            setTimeout(function () {
+                syncAllOtherBoxes(table);
+                fixEmptyLinkedCloCells();
+            }, 0);
+        };
+
         fixNumberedTable(table, 'input[name*="[percentage]"]', 'assessment-total', '%');
+        syncAllOtherBoxes(table);
+        fixEmptyLinkedCloCells();
     }
 
     if (step === '5') {
@@ -131,6 +201,7 @@
         document.querySelectorAll('input[name*="[resources]"]').forEach(input => {
             input.placeholder = 'Enter required resources';
         });
+        syncAllOtherBoxes(document);
     }
 
     if (step === '6') {
@@ -138,10 +209,11 @@
         const methodOptions = ['Direct', 'Indirect'];
 
         document.querySelectorAll('input[name*="[assessor]"]').forEach(input => {
-            makeSelectFromInput(input, assessorOptions, '-- Select assessor --', 'Specify other assessor');
+            makeSelectFromInput(input, assessorOptions, '-- Select assessor --', 'Please specify');
         });
         document.querySelectorAll('input[name*="[assessment_method]"]').forEach(input => {
             makeSelectFromInput(input, methodOptions, '-- Select method --', '');
         });
+        syncAllOtherBoxes(document);
     }
 })();
