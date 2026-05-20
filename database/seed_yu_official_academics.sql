@@ -1,5 +1,25 @@
 USE `AQMS_db`;
 
+SET @db_name = DATABASE();
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @db_name AND TABLE_NAME = 'program_specs' AND COLUMN_NAME = 'institution') = 0,
+  'ALTER TABLE program_specs ADD COLUMN institution varchar(150) DEFAULT ''Al Yamamah University'' AFTER college',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = @db_name AND TABLE_NAME = 'program_specs' AND COLUMN_NAME = 'qualification_level') = 0,
+  'ALTER TABLE program_specs ADD COLUMN qualification_level varchar(100) DEFAULT NULL AFTER program_code',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 UPDATE program_specs SET
   program_code = 'SWE',
   program_name = 'Software Engineering',
