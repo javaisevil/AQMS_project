@@ -16,6 +16,7 @@ function navActive($current, $needle) {
     <title>AQMS — <?php echo htmlspecialchars($page_title ?? 'Dashboard'); ?></title>
     <link rel="stylesheet" href="<?php echo $b; ?>/assets/style.css">
     <link rel="stylesheet" href="<?php echo $b; ?>/assets/aqms_form_fix.css">
+    <link rel="stylesheet" href="<?php echo $b; ?>/assets/course_template_overrides.css">
     <link rel="icon" type="image/png" href="<?php echo $b; ?>/assets/yu-logo.png">
 </head>
 <body>
