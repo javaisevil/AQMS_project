@@ -20,69 +20,170 @@
     const step = params.get('step') || '1';
 
     if (step === '2') {
-        const table = document.getElementById('clo-table');
-        if (!table) return;
+        const oldTable = document.getElementById('clo-table');
+        const form = document.querySelector('form fieldset');
+        if (!oldTable || !form) return;
 
-        table.classList.add('official-table');
-        const header = table.querySelector('thead tr');
-        if (header) {
-            const heads = Array.from(header.children);
-            heads.forEach((th, index) => {
-                if (index > 5) th.remove();
-            });
+        const addButton = document.querySelector('button[onclick="addCloRow()"]');
+        if (addButton) addButton.remove();
+
+        const rows = Array.from(oldTable.querySelectorAll('tbody tr'));
+        const sections = [
+            {title: '1.0 Knowledge and understanding', category: 'Knowledge and Understanding', prefix: '1'},
+            {title: '2.0 Skills', category: 'Skills', prefix: '2'},
+            {title: '3.0 Values, autonomy, and responsibility', category: 'Values, Autonomy, and Responsibility', prefix: '3'}
+        ];
+
+        const builder = document.createElement('div');
+        builder.className = 'clo-builder';
+
+        function getRowCategory(row) {
+            const select = row.querySelector('select[name*="[category]"]');
+            return select ? select.value : 'Knowledge and Understanding';
         }
 
-        table.querySelectorAll('tbody tr').forEach((row, rowIndex) => {
-            const cells = Array.from(row.children);
-            cells.forEach((td, index) => {
-                if (index > 5) td.remove();
+        function getRowIndex(row) {
+            const input = row.querySelector('input[name^="clo["]');
+            if (!input) return Date.now();
+            const match = input.name.match(/clo\[(\d+)\]/);
+            return match ? match[1] : Date.now();
+        }
+
+        function makeField(label, child) {
+            const wrap = document.createElement('div');
+            const lab = document.createElement('label');
+            lab.textContent = label;
+            wrap.appendChild(lab);
+            wrap.appendChild(child);
+            return wrap;
+        }
+
+        function emptyInput(name, value, type) {
+            const input = document.createElement(type === 'textarea' ? 'textarea' : 'input');
+            if (type !== 'textarea') input.type = type || 'text';
+            input.name = name;
+            input.value = value || '';
+            return input;
+        }
+
+        function collectPloLabels(row, newIndex) {
+            const labels = Array.from(row.querySelectorAll('input[name*="[plos]"]')).map(input => {
+                const label = input.closest('label');
+                const code = label ? label.textContent.trim() : input.value;
+                return {value: input.value, code: code, checked: input.checked};
+            });
+            const grid = document.createElement('div');
+            grid.className = 'plo-picker';
+            labels.forEach(item => {
+                const label = document.createElement('label');
+                label.className = 'checkbox-pill';
+                label.innerHTML = '<input type="checkbox" name="clo[' + newIndex + '][plos][]" value="' + item.value + '" ' + (item.checked ? 'checked' : '') + '> ' + item.code;
+                grid.appendChild(label);
+            });
+            if (!labels.length) {
+                const warn = document.createElement('div');
+                warn.className = 'empty-plo-warning';
+                warn.textContent = 'No PLOs are linked to this program yet. Run database/seed_default_plos.sql, then refresh this page.';
+                return warn;
+            }
+            return grid;
+        }
+
+        function collectSkills(row, newIndex) {
+            const labels = Array.from(row.querySelectorAll('input[name*="[jahiziah]"]')).map(input => {
+                const label = input.closest('label');
+                const code = label ? label.textContent.trim() : input.value;
+                return {value: input.value, code: code, checked: input.checked};
+            });
+            const grid = document.createElement('div');
+            grid.className = 'checkbox-grid';
+            labels.forEach(item => {
+                const label = document.createElement('label');
+                label.className = 'checkbox-pill';
+                label.innerHTML = '<input type="checkbox" name="clo[' + newIndex + '][jahiziah][]" value="' + item.value + '" ' + (item.checked ? 'checked' : '') + '> ' + item.code;
+                grid.appendChild(label);
+            });
+            return grid;
+        }
+
+        function makeCloCard(index, category, row) {
+            const card = document.createElement('div');
+            card.className = 'clo-card';
+
+            const codeValue = row ? (row.querySelector('input[name*="[code]"]')?.value || '') : '';
+            const descValue = row ? (row.querySelector('input[name*="[description]"]')?.value || '') : '';
+            const teachValue = row ? (row.querySelector('input[name*="[teaching_strategies]"]')?.value || '') : '';
+            const assessValue = row ? (row.querySelector('input[name*="[assessment_methods]"]')?.value || '') : '';
+
+            const hiddenCat = emptyInput('clo[' + index + '][category]', category, 'hidden');
+            const code = emptyInput('clo[' + index + '][code]', codeValue, 'text');
+            const desc = emptyInput('clo[' + index + '][description]', descValue, 'textarea');
+            const teach = emptyInput('clo[' + index + '][teaching_strategies]', teachValue, 'textarea');
+            const assess = emptyInput('clo[' + index + '][assessment_methods]', assessValue, 'textarea');
+
+            const codeWrap = makeField('Code', code);
+            codeWrap.appendChild(hiddenCat);
+            card.appendChild(codeWrap);
+            card.appendChild(makeField('Course Learning Outcome', desc));
+
+            const ploSourceRow = row || rows[0];
+            card.appendChild(makeField('Code of PLOs aligned with the program', collectPloLabels(ploSourceRow, index)));
+            card.appendChild(makeField('Teaching Strategies', teach));
+            card.appendChild(makeField('Assessment Methods', assess));
+
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'icon-btn clo-card-remove';
+            remove.textContent = '✕';
+            remove.addEventListener('click', function () { card.remove(); });
+            card.appendChild(remove);
+
+            const skillsWrap = document.createElement('div');
+            skillsWrap.style.gridColumn = '2 / span 4';
+            skillsWrap.appendChild(makeField('Jahiziah Skills', collectSkills(row || rows[0], index)));
+            card.appendChild(skillsWrap);
+
+            return card;
+        }
+
+        let nextIndex = rows.length || 0;
+        sections.forEach(section => {
+            const box = document.createElement('div');
+            box.className = 'clo-section';
+            const title = document.createElement('div');
+            title.className = 'clo-section-title';
+            title.innerHTML = '<span>' + section.title + '</span>';
+            const add = document.createElement('button');
+            add.type = 'button';
+            add.className = 'btn btn-outline btn-sm';
+            add.textContent = '+ Add CLO';
+            title.appendChild(add);
+            box.appendChild(title);
+
+            const matching = rows.filter(row => getRowCategory(row) === section.category);
+            const initial = matching.length ? matching : [null, null];
+            initial.forEach((row, i) => {
+                const idx = row ? getRowIndex(row) : (nextIndex++);
+                const card = makeCloCard(idx, section.category, row);
+                if (!row) {
+                    const codeInput = card.querySelector('input[name*="[code]"]');
+                    if (codeInput) codeInput.value = section.prefix + '.' + (i + 1);
+                }
+                box.appendChild(card);
             });
 
-            const codeCell = row.children[0];
-            const outcomeCell = row.children[1];
-            const ploCell = row.children[2];
-            const jahiziahCell = row.children[5];
+            add.addEventListener('click', function () {
+                const count = box.querySelectorAll('.clo-card').length + 1;
+                const card = makeCloCard(nextIndex++, section.category, null);
+                const codeInput = card.querySelector('input[name*="[code]"]');
+                if (codeInput) codeInput.value = section.prefix + '.' + count;
+                box.appendChild(card);
+            });
 
-            if (codeCell) codeCell.classList.add('small-col');
-            if (outcomeCell) outcomeCell.classList.add('wide-col');
-            if (ploCell) ploCell.classList.add('medium-col');
-
-            if (ploCell && !ploCell.classList.contains('fixed-plo-cell')) {
-                ploCell.classList.add('fixed-plo-cell');
-                const labels = Array.from(ploCell.querySelectorAll('label'));
-                if (labels.length) {
-                    const grid = document.createElement('div');
-                    grid.className = 'checkbox-grid';
-                    labels.forEach(label => {
-                        label.classList.add('checkbox-pill');
-                        grid.appendChild(label);
-                    });
-                    ploCell.innerHTML = '';
-                    ploCell.appendChild(grid);
-                }
-            }
-
-            if (jahiziahCell && !jahiziahCell.classList.contains('fixed-skills-cell')) {
-                jahiziahCell.classList.add('fixed-skills-cell');
-                const labels = Array.from(jahiziahCell.querySelectorAll('label'));
-                if (labels.length) {
-                    const grid = document.createElement('div');
-                    grid.className = 'checkbox-grid';
-                    labels.forEach(label => {
-                        label.classList.add('checkbox-pill');
-                        grid.appendChild(label);
-                    });
-                    jahiziahCell.innerHTML = '';
-                    jahiziahCell.appendChild(grid);
-                }
-            }
+            builder.appendChild(box);
         });
 
-        const oldAddCloRow = window.addCloRow;
-        window.addCloRow = function () {
-            if (typeof oldAddCloRow === 'function') oldAddCloRow();
-            setTimeout(() => window.location.reload(), 50);
-        };
+        oldTable.closest('div').replaceWith(builder);
     }
 
     if (step === '3') {
