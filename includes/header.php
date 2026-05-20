@@ -17,6 +17,7 @@ function navActive($current, $needle) {
     <link rel="stylesheet" href="<?php echo $b; ?>/assets/style.css">
     <link rel="stylesheet" href="<?php echo $b; ?>/assets/aqms_form_fix.css">
     <link rel="stylesheet" href="<?php echo $b; ?>/assets/course_template_overrides.css">
+    <script defer src="<?php echo $b; ?>/assets/course_remaining_fixes.js"></script>
     <link rel="icon" type="image/png" href="<?php echo $b; ?>/assets/yu-logo.png">
 </head>
 <body>
