@@ -5,6 +5,7 @@ require_once '../db.php';
 $program_id = intval($_GET['id'] ?? 1);
 function h($v){ return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8'); }
 function rows(PDO $pdo, string $sql, int $id){ $q=$pdo->prepare($sql); $q->execute([$id]); return $q->fetchAll(); }
+function tableExists(PDO $pdo, string $table){ $q=$pdo->prepare('SHOW TABLES LIKE ?'); $q->execute([$table]); return (bool)$q->fetchColumn(); }
 
 $stmt=$pdo->prepare('SELECT * FROM program_specs WHERE program_id=?');
 $stmt->execute([$program_id]);
@@ -22,7 +23,10 @@ $staff=rows($pdo,'SELECT * FROM program_staffing WHERE program_id=? ORDER BY id'
 $evals=rows($pdo,'SELECT * FROM program_evaluation_matrix WHERE program_id=? ORDER BY id',$program_id);
 $approval=rows($pdo,'SELECT * FROM program_approval WHERE program_id=? LIMIT 1',$program_id); $approval=$approval[0]??[];
 $courseSpecs=rows($pdo,'SELECT course_id, course_code, course_title, course_level, credit_hours, status FROM course_specs WHERE program_id=? ORDER BY course_level, course_code',$program_id);
-
+$mapping=[];
+if(tableExists($pdo,'program_plo_course_mapping')){
+    foreach(rows($pdo,'SELECT * FROM program_plo_course_mapping WHERE program_id=?',$program_id) as $m) $mapping[$m['course_plan_id']][$m['plo_id']]=$m['performance_level'];
+}
 $ploByCategory=[]; foreach($plos as $p){ $ploByCategory[$p['category']][]=$p; }
 function sectionText($sections,$key){ return nl2br(h($sections[$key]['section_value'] ?? '')); }
 ?>
@@ -42,6 +46,13 @@ body{font-family:"Times New Roman",serif;font-size:12pt;color:#000;background:#f
 <h2>C. Curriculum</h2>
 <h3>Curriculum Structure</h3><table><tr><th>Requirement Type</th><th>Required Hours</th><th>Elective Hours</th><th>Total</th><th>%</th></tr><?php if(empty($curriculum)): ?><tr><td colspan="5">No curriculum structure recorded.</td></tr><?php else: foreach($curriculum as $r): ?><tr><td><?php echo h($r['requirement_type']); ?></td><td><?php echo h($r['required_hours']); ?></td><td><?php echo h($r['elective_hours']); ?></td><td><?php echo h($r['total_hours']); ?></td><td><?php echo h($r['percentage']); ?></td></tr><?php endforeach; endif; ?></table>
 <h3>Program Courses by Level</h3><table><tr><th>Level</th><th>Code</th><th>Course Title</th><th>Req/Elective</th><th>Prerequisites</th><th>Credits</th><th>Course Spec Link</th></tr><?php if(empty($plan)): ?><tr><td colspan="7">No course plan recorded.</td></tr><?php else: foreach($plan as $c): ?><tr><td><?php echo h($c['level_no']); ?></td><td><?php echo h($c['course_code']); ?></td><td><?php echo h($c['course_title']); ?></td><td><?php echo h($c['required_elective']); ?></td><td><?php echo h($c['prerequisites']); ?></td><td><?php echo h($c['credit_hours']); ?></td><td><?php echo h($c['course_spec_url']); ?></td></tr><?php endforeach; endif; ?></table>
+
+<h3>Program Learning Outcomes Mapping Matrix</h3>
+<table><tr><th>Course code and No.</th><?php foreach($plos as $p): ?><th><?php echo h($p['plo_code']); ?></th><?php endforeach; ?></tr>
+<?php if(empty($plan)): ?><tr><td colspan="<?php echo count($plos)+1; ?>">No course plan recorded.</td></tr><?php else: foreach($plan as $c): ?><tr><td><?php echo h($c['course_code'] . ' - ' . $c['course_title']); ?></td><?php foreach($plos as $p): ?><td class="center"><?php echo h($mapping[$c['id']][$p['plo_id']] ?? ''); ?></td><?php endforeach; ?></tr><?php endforeach; endif; ?>
+</table>
+<p class="muted">I = Introduced, P = Practiced, M = Mastered.</p>
+
 <h3>Existing Course Specifications in the System</h3><table><tr><th>Code</th><th>Title</th><th>Level</th><th>Credits</th><th>Status</th></tr><?php if(empty($courseSpecs)): ?><tr><td colspan="5">No course specs connected.</td></tr><?php else: foreach($courseSpecs as $c): ?><tr><td><?php echo h($c['course_code']); ?></td><td><?php echo h($c['course_title']); ?></td><td><?php echo h($c['course_level']); ?></td><td><?php echo h($c['credit_hours']); ?></td><td><?php echo h(ucwords(str_replace('_',' ',$c['status']))); ?></td></tr><?php endforeach; endif; ?></table>
 <h3>PLO Teaching and Assessment Methods</h3><table><tr><th>PLO</th><th>Description</th><th>Teaching Strategies</th><th>Assessment Methods</th></tr><?php if(empty($methods)): ?><tr><td colspan="4">No PLO methods recorded.</td></tr><?php else: foreach($methods as $m): ?><tr><td><?php echo h($m['plo_code']); ?></td><td><?php echo h($m['description']); ?></td><td><?php echo nl2br(h($m['teaching_strategies'])); ?></td><td><?php echo nl2br(h($m['assessment_methods'])); ?></td></tr><?php endforeach; endif; ?></table>
 

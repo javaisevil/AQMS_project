@@ -16,11 +16,32 @@ function aqmsProgramSectionValue(PDO $pdo, int $programId, string $key): string 
     return trim((string)$stmt->fetchColumn());
 }
 
+function aqmsProgramCount(PDO $pdo, string $sql, int $programId): int {
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$programId]);
+        return (int)$stmt->fetchColumn();
+    } catch (Exception $e) {
+        return 0;
+    }
+}
+
 function aqmsValidateProgramSpecification(PDO $pdo, array $program): array {
     $errors = [];
     $programId = intval($program['program_id'] ?? 0);
 
-    foreach (['program_name' => 'Program name is required.', 'program_code' => 'Program code is required.', 'college' => 'College is required.', 'department' => 'Department is required.', 'credit_hours' => 'Credit hours are required.', 'qualification_level' => 'Qualification level is required.', 'mission' => 'Program mission is required.', 'goals' => 'Program goals are required.', 'program_aims' => 'Program aims are required.', 'program_structure' => 'Program structure is required.'] as $field => $message) {
+    foreach ([
+        'program_name' => 'Program name is required.',
+        'program_code' => 'Program code is required.',
+        'college' => 'College is required.',
+        'department' => 'Department is required.',
+        'credit_hours' => 'Credit hours are required.',
+        'qualification_level' => 'Qualification level is required.',
+        'mission' => 'Program mission is required.',
+        'goals' => 'Program goals are required.',
+        'program_aims' => 'Program aims are required.',
+        'program_structure' => 'Program structure is required.'
+    ] as $field => $message) {
         if (!isset($program[$field]) || trim((string)$program[$field]) === '') $errors[] = $message;
     }
 
@@ -65,12 +86,16 @@ function aqmsValidateProgramSpecification(PDO $pdo, array $program): array {
     ];
 
     foreach ($checks as $sql => $message) {
-        try {
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([$programId]);
-            if ((int)$stmt->fetchColumn() === 0) $errors[] = $message;
-        } catch (Exception $e) {
-            $errors[] = $message;
+        if (aqmsProgramCount($pdo, $sql, $programId) === 0) $errors[] = $message;
+    }
+
+    if (!aqmsProgramTableExists($pdo, 'program_plo_course_mapping')) {
+        $errors[] = 'Program PLO course mapping matrix table is missing.';
+    } else {
+        $planCount = aqmsProgramCount($pdo, 'SELECT COUNT(*) FROM program_course_plan WHERE program_id = ?', $programId);
+        $mapCount = aqmsProgramCount($pdo, 'SELECT COUNT(*) FROM program_plo_course_mapping WHERE program_id = ?', $programId);
+        if ($planCount > 0 && $mapCount === 0) {
+            $errors[] = 'Program PLO course mapping matrix is required.';
         }
     }
 
