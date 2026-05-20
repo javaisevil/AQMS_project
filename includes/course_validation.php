@@ -93,11 +93,9 @@ function aqmsValidateCourseSpecification(PDO $pdo, array $course, bool $strict =
         }
     }
 
-    $hasRubric = aqmsColumnExists($pdo, 'assessments', 'rubric');
-    $hasTask = aqmsColumnExists($pdo, 'assessments', 'performance_task');
     $assessmentFields = 'id, activity_name, timing_week, percentage';
-    if ($hasRubric) $assessmentFields .= ', rubric';
-    if ($hasTask) $assessmentFields .= ', performance_task';
+    if (aqmsColumnExists($pdo, 'assessments', 'rubric')) $assessmentFields .= ', rubric';
+    if (aqmsColumnExists($pdo, 'assessments', 'performance_task')) $assessmentFields .= ', performance_task';
 
     $assessments = $pdo->prepare("SELECT $assessmentFields FROM assessments WHERE course_id = ?");
     $assessments->execute([$courseId]);
@@ -113,8 +111,6 @@ function aqmsValidateCourseSpecification(PDO $pdo, array $course, bool $strict =
             $total += (float)$assessment['percentage'];
             if (empty($assessment['timing_week'])) $errors[] = $name . ' must include assessment timing.';
             if ($assessment['percentage'] === null || $assessment['percentage'] === '') $errors[] = $name . ' must include percentage of total assessment.';
-            if ($hasRubric && trim((string)($assessment['rubric'] ?? '')) === '') $errors[] = $name . ' must include a rubric.';
-            if ($hasTask && trim((string)($assessment['performance_task'] ?? '')) === '') $errors[] = $name . ' must include a performance task.';
             $linkCheck->execute([$assessment['id']]);
             if ((int)$linkCheck->fetchColumn() === 0) $errors[] = $name . ' must be linked to at least one CLO.';
         }
