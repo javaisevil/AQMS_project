@@ -4,6 +4,9 @@ requireRole('faculty');
 require_once '../db.php';
 
 $yu_courses = require __DIR__ . '/../includes/yu_courses.php';
+$yu_academics = require __DIR__ . '/../includes/yu_academics.php';
+$institution = $yu_academics['institution'];
+
 $course_id = intval($_GET['id'] ?? 0);
 $step = intval($_GET['step'] ?? 1);
 if ($step < 1 || $step > 8) $step = 1;
@@ -32,17 +35,26 @@ function checkedInList($list, $value) {
     return in_array($value, $items, true) ? 'checked' : '';
 }
 
+$programs = $pdo->query('SELECT * FROM program_specs ORDER BY college, qualification_level, program_name')->fetchAll();
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$readonly) {
     if ($step === 1) {
+        $program_id = intval($_POST['program_id'] ?? $course['program_id']);
+        $p = $pdo->prepare('SELECT * FROM program_specs WHERE program_id = ?');
+        $p->execute([$program_id]);
+        $program = $p->fetch();
+
         $course_types = $_POST['course_type'] ?? [];
         $course_type = is_array($course_types) ? implode(', ', $course_types) : trim($course_types);
-        $pdo->prepare('UPDATE course_specs SET course_title=?, course_code=?, department=?, college=?, institution=?, version=?, last_revision_date=?, credit_hours=?, course_type=?, required_elective=?, course_level=?, prerequisites=?, corequisites=?, course_description=?, objectives=? WHERE course_id=?')
+
+        $pdo->prepare('UPDATE course_specs SET program_id=?, course_title=?, course_code=?, department=?, college=?, institution=?, version=?, last_revision_date=?, credit_hours=?, course_type=?, required_elective=?, course_level=?, prerequisites=?, corequisites=?, course_description=?, objectives=? WHERE course_id=?')
             ->execute([
+                $program_id ?: null,
                 trim($_POST['course_title'] ?? ''),
                 trim($_POST['course_code'] ?? ''),
-                trim($_POST['department'] ?? ''),
-                trim($_POST['college'] ?? ''),
-                trim($_POST['institution'] ?? ''),
+                $program['department'] ?? '',
+                $program['college'] ?? '',
+                $institution,
                 trim($_POST['version'] ?? '1.0'),
                 $_POST['last_revision_date'] ?: null,
                 floatval($_POST['credit_hours'] ?? 0) ?: null,
@@ -55,39 +67,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$readonly) {
                 trim($_POST['objectives'] ?? ''),
                 $course_id
             ]);
-        $msg = 'Course information saved.';
+
+        $pdo->prepare('DELETE FROM teaching_modes WHERE course_id = ?')->execute([$course_id]);
+        $pdo->prepare('DELETE FROM contact_hours WHERE course_id = ?')->execute([$course_id]);
+
+        foreach (($_POST['mode'] ?? []) as $row) {
+            if (empty($row['selected'])) continue;
+            $pdo->prepare('INSERT INTO teaching_modes (course_id, mode_type, contact_hours, percentage) VALUES (?, ?, ?, ?)')
+                ->execute([$course_id, $row['mode_type'], floatval($row['contact_hours'] ?? 0) ?: null, floatval($row['percentage'] ?? 0) ?: null]);
+        }
+
+        foreach (($_POST['hours'] ?? []) as $row) {
+            $pdo->prepare('INSERT INTO contact_hours (course_id, activity_type, hours) VALUES (?, ?, ?)')
+                ->execute([$course_id, $row['activity_type'], floatval($row['hours'] ?? 0) ?: null]);
+        }
+
+        $msg = 'General information saved.';
     } elseif ($step === 2) {
-        if (!empty($_POST['clo'])) {
-            $pdo->prepare('DELETE FROM clo_plo_mapping WHERE clo_id IN (SELECT clo_id FROM course_learning_outcomes WHERE course_id = ?)')->execute([$course_id]);
-            $pdo->prepare('DELETE FROM jahiziah_skills WHERE course_id = ?')->execute([$course_id]);
-            $pdo->prepare('DELETE FROM course_learning_outcomes WHERE course_id = ?')->execute([$course_id]);
-            foreach ($_POST['clo'] as $row) {
-                $desc = trim($row['description'] ?? '');
-                if (!$desc) continue;
-                $ins = $pdo->prepare('INSERT INTO course_learning_outcomes (course_id, clo_code, description, category, teaching_strategies, assessment_methods) VALUES (?, ?, ?, ?, ?, ?)');
-                $ins->execute([
-                    $course_id,
-                    trim($row['code'] ?? ''),
-                    $desc,
-                    $row['category'] ?? 'Knowledge and Understanding',
-                    trim($row['teaching_strategies'] ?? ''),
-                    trim($row['assessment_methods'] ?? '')
-                ]);
-                $clo_id = $pdo->lastInsertId();
-                foreach (($row['jahiziah'] ?? []) as $skill) {
-                    $pdo->prepare('INSERT INTO jahiziah_skills (course_id, clo_id, skill_type) VALUES (?, ?, ?)')
-                        ->execute([$course_id, $clo_id, $skill]);
-                }
-                foreach (($row['plos'] ?? []) as $plo_id) {
-                    $pdo->prepare('INSERT IGNORE INTO clo_plo_mapping (clo_id, plo_id) VALUES (?, ?)')
-                        ->execute([$clo_id, intval($plo_id)]);
-                }
+        $pdo->prepare('DELETE FROM clo_plo_mapping WHERE clo_id IN (SELECT clo_id FROM course_learning_outcomes WHERE course_id = ?)')->execute([$course_id]);
+        $pdo->prepare('DELETE FROM jahiziah_skills WHERE course_id = ?')->execute([$course_id]);
+        $pdo->prepare('DELETE FROM course_learning_outcomes WHERE course_id = ?')->execute([$course_id]);
+
+        foreach (($_POST['clo'] ?? []) as $row) {
+            $desc = trim($row['description'] ?? '');
+            if (!$desc) continue;
+            $ins = $pdo->prepare('INSERT INTO course_learning_outcomes (course_id, clo_code, description, category, teaching_strategies, assessment_methods) VALUES (?, ?, ?, ?, ?, ?)');
+            $ins->execute([
+                $course_id,
+                trim($row['code'] ?? ''),
+                $desc,
+                $row['category'] ?? 'Knowledge and Understanding',
+                trim($row['teaching_strategies'] ?? ''),
+                trim($row['assessment_methods'] ?? '')
+            ]);
+            $clo_id = $pdo->lastInsertId();
+
+            foreach (($row['jahiziah'] ?? []) as $skill) {
+                $pdo->prepare('INSERT INTO jahiziah_skills (course_id, clo_id, skill_type) VALUES (?, ?, ?)')->execute([$course_id, $clo_id, $skill]);
+            }
+            foreach (($row['plos'] ?? []) as $plo_id) {
+                $pdo->prepare('INSERT IGNORE INTO clo_plo_mapping (clo_id, plo_id) VALUES (?, ?)')->execute([$clo_id, intval($plo_id)]);
             }
         }
         $msg = 'CLOs and mappings saved.';
     } elseif ($step === 3) {
+        $pdo->prepare('DELETE FROM course_topics WHERE course_id = ?')->execute([$course_id]);
+        $order = 0;
+        foreach (($_POST['topic'] ?? []) as $row) {
+            $txt = trim($row['topic_text'] ?? '');
+            if (!$txt) continue;
+            $pdo->prepare('INSERT INTO course_topics (course_id, topic_text, contact_hours, sort_order) VALUES (?, ?, ?, ?)')
+                ->execute([$course_id, $txt, floatval($row['contact_hours'] ?? 0) ?: null, $order++]);
+        }
+        $msg = 'Course content saved.';
+    } elseif ($step === 4) {
         $pdo->prepare('DELETE FROM assessment_clo WHERE assessment_id IN (SELECT id FROM assessments WHERE course_id = ?)')->execute([$course_id]);
         $pdo->prepare('DELETE FROM assessments WHERE course_id = ?')->execute([$course_id]);
+
         foreach (($_POST['assessment'] ?? []) as $row) {
             $name = trim($row['activity_name'] ?? '');
             if (!$name) continue;
@@ -99,58 +135,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$readonly) {
             }
         }
         $msg = 'Assessment activities saved.';
-    } elseif ($step === 4) {
-        $pdo->prepare('DELETE FROM teaching_modes WHERE course_id = ?')->execute([$course_id]);
-        $pdo->prepare('DELETE FROM contact_hours WHERE course_id = ?')->execute([$course_id]);
-        foreach (($_POST['mode'] ?? []) as $row) {
-            if (empty($row['selected'])) continue;
-            $pdo->prepare('INSERT INTO teaching_modes (course_id, mode_type, contact_hours, percentage) VALUES (?, ?, ?, ?)')
-                ->execute([$course_id, $row['mode_type'], floatval($row['contact_hours'] ?? 0) ?: null, floatval($row['percentage'] ?? 0) ?: null]);
-        }
-        foreach (($_POST['hours'] ?? []) as $row) {
-            $pdo->prepare('INSERT INTO contact_hours (course_id, activity_type, hours) VALUES (?, ?, ?)')
-                ->execute([$course_id, $row['activity_type'], floatval($row['hours'] ?? 0) ?: null]);
-        }
-        $msg = 'Teaching modes and contact hours saved.';
     } elseif ($step === 5) {
-        $pdo->prepare('DELETE FROM course_topics WHERE course_id = ?')->execute([$course_id]);
-        $order = 0;
-        foreach (($_POST['topic'] ?? []) as $row) {
-            $txt = trim($row['topic_text'] ?? '');
-            if (!$txt) continue;
-            $pdo->prepare('INSERT INTO course_topics (course_id, topic_text, contact_hours, sort_order) VALUES (?, ?, ?, ?)')
-                ->execute([$course_id, $txt, floatval($row['contact_hours'] ?? 0) ?: null, $order++]);
-        }
-        $msg = 'Course content saved.';
-    } elseif ($step === 6) {
         $pdo->prepare('DELETE FROM resources WHERE course_id = ?')->execute([$course_id]);
         $pdo->prepare('DELETE FROM course_facilities WHERE course_id = ?')->execute([$course_id]);
-        $pdo->prepare('DELETE FROM course_quality WHERE course_id = ?')->execute([$course_id]);
-        $pdo->prepare('DELETE FROM course_approval WHERE course_id = ?')->execute([$course_id]);
+
         foreach (($_POST['resource'] ?? []) as $row) {
             $txt = trim($row['resource_text'] ?? '');
             if (!$txt) continue;
-            $pdo->prepare('INSERT INTO resources (course_id, category, resource_text) VALUES (?, ?, ?)')
-                ->execute([$course_id, $row['category'], $txt]);
+            $pdo->prepare('INSERT INTO resources (course_id, category, resource_text) VALUES (?, ?, ?)')->execute([$course_id, $row['category'], $txt]);
         }
         foreach (($_POST['facility'] ?? []) as $row) {
-            $pdo->prepare('INSERT INTO course_facilities (course_id, item, resources) VALUES (?, ?, ?)')
-                ->execute([$course_id, $row['item'], trim($row['resources'] ?? '')]);
+            $pdo->prepare('INSERT INTO course_facilities (course_id, item, resources) VALUES (?, ?, ?)')->execute([$course_id, $row['item'], trim($row['resources'] ?? '')]);
         }
+        $msg = 'Learning resources and facilities saved.';
+    } elseif ($step === 6) {
+        $pdo->prepare('DELETE FROM course_quality WHERE course_id = ?')->execute([$course_id]);
+        $pdo->prepare('DELETE FROM course_approval WHERE course_id = ?')->execute([$course_id]);
+
         foreach (($_POST['quality'] ?? []) as $row) {
             $pdo->prepare('INSERT INTO course_quality (course_id, assessment_area, assessor, assessment_method) VALUES (?, ?, ?, ?)')
                 ->execute([$course_id, $row['assessment_area'], trim($row['assessor'] ?? ''), trim($row['assessment_method'] ?? '')]);
         }
         $pdo->prepare('INSERT INTO course_approval (course_id, council_committee, reference_no, approval_date) VALUES (?, ?, ?, ?)')
             ->execute([$course_id, trim($_POST['council_committee'] ?? ''), trim($_POST['reference_no'] ?? ''), $_POST['approval_date'] ?: null]);
-        $msg = 'Resources, facilities, quality assessment, and approval data saved.';
+        $msg = 'Quality assessment and approval data saved.';
     } elseif ($step === 7) {
         $pdo->prepare('DELETE FROM course_pdca WHERE course_id = ?')->execute([$course_id]);
         foreach (($_POST['pdca'] ?? []) as $row) {
             $content = trim($row['content'] ?? '');
             if (!$content) continue;
-            $pdo->prepare('INSERT INTO course_pdca (course_id, phase, content, created_at) VALUES (?, ?, ?, NOW())')
-                ->execute([$course_id, $row['phase'], $content]);
+            $pdo->prepare('INSERT INTO course_pdca (course_id, phase, content, created_at) VALUES (?, ?, ?, NOW())')->execute([$course_id, $row['phase'], $content]);
         }
         $msg = 'PDCA saved.';
     }
@@ -229,13 +243,13 @@ $j->execute([$course_id]);
 foreach ($j->fetchAll() as $row) $jahiziah[$row['clo_id']][] = $row['skill_type'];
 
 $step_labels = [
-    1 => 'General Information',
-    2 => 'CLOs & PLO Mapping',
-    3 => 'Assessment Activities',
-    4 => 'Teaching Mode & Contact Hours',
-    5 => 'Course Content',
-    6 => 'Resources, Facilities & Quality',
-    7 => 'PDCA Log',
+    1 => 'A. General Information',
+    2 => 'B. CLOs, Strategies & Assessment',
+    3 => 'C. Course Content',
+    4 => 'D. Student Assessment Activities',
+    5 => 'E. Learning Resources & Facilities',
+    6 => 'F/G. Quality & Approval',
+    7 => 'Additional PDCA Log',
     8 => 'Review & Submit'
 ];
 
@@ -273,7 +287,7 @@ include '../includes/header.php';
     <select id="yu_course_select" onchange="fillYuCourse(this)">
         <option value="">-- Select course --</option>
         <?php foreach ($yu_courses as $c): ?>
-        <option value="<?php echo h($c['code']); ?>" data-code="<?php echo h($c['code']); ?>" data-title="<?php echo h($c['title']); ?>" data-level="<?php echo h($c['level']); ?>" data-credits="<?php echo h($c['credits']); ?>" data-type="<?php echo h($c['type']); ?>">
+        <option value="<?php echo h($c['code']); ?>" data-code="<?php echo h($c['code']); ?>" data-title="<?php echo h($c['title']); ?>" data-level="<?php echo h($c['level']); ?>" data-credits="<?php echo h($c['credits']); ?>">
             <?php echo h($c['code'] . ' - ' . $c['title'] . ' (' . $c['credits'] . ' cr)'); ?>
         </option>
         <?php endforeach; ?>
@@ -284,12 +298,12 @@ include '../includes/header.php';
     <div class="form-group"><label>Course Code *</label><input type="text" id="course_code" name="course_code" required value="<?php echo h($course['course_code']); ?>"></div>
 </div>
 <div class="form-row">
-    <div class="form-group"><label>Program</label><input type="text" value="<?php echo h($course['program_id']); ?>" disabled></div>
-    <div class="form-group"><label>Department</label><input type="text" name="department" value="<?php echo h($course['department'] ?? ''); ?>"></div>
+    <div class="form-group"><label>Program</label><select name="program_id" id="program_id" onchange="fillProgramInfo(this)"><?php foreach ($programs as $p): ?><option value="<?php echo $p['program_id']; ?>" data-college="<?php echo h($p['college']); ?>" data-department="<?php echo h($p['department']); ?>" <?php echo ($course['program_id'] == $p['program_id']) ? 'selected' : ''; ?>><?php echo h(($p['program_code'] ? $p['program_code'] . ' - ' : '') . $p['program_name']); ?></option><?php endforeach; ?></select></div>
+    <div class="form-group"><label>Institution</label><input type="text" value="<?php echo h($institution); ?>" readonly></div>
 </div>
 <div class="form-row">
-    <div class="form-group"><label>College</label><input type="text" name="college" value="<?php echo h($course['college'] ?? ''); ?>"></div>
-    <div class="form-group"><label>Institution</label><input type="text" name="institution" value="<?php echo h($course['institution'] ?? 'Al Yamamah University'); ?>"></div>
+    <div class="form-group"><label>Department</label><input type="text" id="department_display" value="<?php echo h($course['department'] ?? ''); ?>" readonly></div>
+    <div class="form-group"><label>College</label><input type="text" id="college_display" value="<?php echo h($course['college'] ?? ''); ?>" readonly></div>
 </div>
 <div class="form-row">
     <div class="form-group"><label>Version</label><input type="text" name="version" value="<?php echo h($course['version']); ?>"></div>
@@ -317,6 +331,21 @@ include '../includes/header.php';
     <div class="form-group"><label>Co-requisites for this course</label><input type="text" name="corequisites" value="<?php echo h($course['corequisites']); ?>"></div>
 </div>
 <div class="form-group"><label>Course Main Objective(s)</label><textarea name="objectives" rows="3"><?php echo h($course['objectives']); ?></textarea></div>
+
+<h3>2. Teaching mode</h3>
+<table><thead><tr><th>No</th><th>Mode of Instruction</th><th>Contact Hours</th><th>Percentage</th></tr></thead><tbody>
+<?php foreach (['Traditional classroom','E-learning','Hybrid','Distance learning'] as $i => $mode): $m = $mode_data[$mode] ?? []; ?>
+<tr><td><?php echo $i + 1; ?></td><td><label style="font-weight:600;"><input type="checkbox" name="mode[<?php echo $i; ?>][selected]" value="1" <?php echo $m ? 'checked' : ''; ?>> <?php echo $mode; ?></label><?php if ($mode === 'Hybrid'): ?><br><small style="margin-left:24px;">Traditional classroom + E-learning</small><?php endif; ?><input type="hidden" name="mode[<?php echo $i; ?>][mode_type]" value="<?php echo $mode; ?>"></td><td><input type="number" name="mode[<?php echo $i; ?>][contact_hours]" step="0.5" value="<?php echo h($m['contact_hours'] ?? ''); ?>"></td><td><input type="number" name="mode[<?php echo $i; ?>][percentage]" step="0.5" value="<?php echo h($m['percentage'] ?? ''); ?>"></td></tr>
+<?php endforeach; ?>
+</tbody></table>
+
+<h3>3. Contact Hours</h3>
+<table><thead><tr><th>No</th><th>Activity</th><th>Contact Hours</th></tr></thead><tbody>
+<?php foreach (['Lectures','Laboratory/Studio','Field','Tutorial','Others'] as $i => $activity): $hrow = $hour_data[$activity] ?? []; ?>
+<tr><td><?php echo $i + 1; ?>.</td><td><strong><?php echo $activity; ?><?php echo $activity === 'Others' ? ' (specify)' : ''; ?></strong><input type="hidden" name="hours[<?php echo $i; ?>][activity_type]" value="<?php echo $activity; ?>"></td><td><input type="number" name="hours[<?php echo $i; ?>][hours]" step="0.5" value="<?php echo h($hrow['hours'] ?? ''); ?>"></td></tr>
+<?php endforeach; ?>
+<tr><td colspan="2"><strong>Total</strong></td><td><strong><?php echo h(array_sum(array_column($chours, 'hours'))); ?></strong></td></tr>
+</tbody></table>
 <script>
 function fillYuCourse(select) {
     var item = select.options[select.selectedIndex];
@@ -326,21 +355,24 @@ function fillYuCourse(select) {
     document.getElementById('course_level').value = item.dataset.level;
     document.getElementById('credit_hours').value = item.dataset.credits;
 }
+function fillProgramInfo(select) {
+    var item = select.options[select.selectedIndex];
+    document.getElementById('department_display').value = item.dataset.department || '';
+    document.getElementById('college_display').value = item.dataset.college || '';
+}
 </script>
 
 <?php elseif ($step === 2): ?>
-<div class="card-header"><h2>B. Course Learning Outcomes (CLOs), Teaching Strategies and Assessment Methods</h2><?php if (!$readonly): ?><button type="button" class="btn btn-outline btn-sm" onclick="addCloRow()">+ Add CLO</button><?php endif; ?></div>
-<p class="text-muted">Each CLO must map to at least one PLO.</p>
-<div style="overflow-x:auto;"><table class="matrix-table" id="clo-table"><thead><tr><th>Code</th><th>Course Learning Outcomes</th><th>Domain</th><th>Teaching Strategies</th><th>Assessment Methods</th><th>Jahiziah Skills</th><?php foreach ($plos as $plo): ?><th title="<?php echo h($plo['description']); ?>"><?php echo h($plo['plo_code']); ?></th><?php endforeach; ?><?php if (!$readonly): ?><th></th><?php endif; ?></tr></thead><tbody>
+<div class="card-header"><h2>B. Course Learning Outcomes, Teaching Strategies and Assessment Methods</h2><?php if (!$readonly): ?><button type="button" class="btn btn-outline btn-sm" onclick="addCloRow()">+ Add CLO</button><?php endif; ?></div>
+<div style="overflow-x:auto;"><table class="matrix-table" id="clo-table"><thead><tr><th>Code</th><th>Course Learning Outcomes</th><th>Code of PLOs aligned with the program</th><th>Teaching Strategies</th><th>Assessment Methods</th><th>Jahiziah Skills</th><?php foreach ($plos as $plo): ?><th title="<?php echo h($plo['description']); ?>"><?php echo h($plo['plo_code']); ?></th><?php endforeach; ?><?php if (!$readonly): ?><th></th><?php endif; ?></tr></thead><tbody>
 <?php $rows = $clos ?: [[]]; foreach ($rows as $i => $clo): ?>
 <tr>
 <td><input type="text" name="clo[<?php echo $i; ?>][code]" value="<?php echo h($clo['clo_code'] ?? ''); ?>"></td>
-<td><input type="text" name="clo[<?php echo $i; ?>][description]" value="<?php echo h($clo['description'] ?? ''); ?>"></td>
-<td><select name="clo[<?php echo $i; ?>][category]"><?php foreach (['Knowledge and Understanding','Skills','Values, Autonomy, and Responsibility'] as $cat): ?><option <?php echo (($clo['category'] ?? '') === $cat) ? 'selected' : ''; ?>><?php echo $cat; ?></option><?php endforeach; ?></select></td>
+<td><input type="text" name="clo[<?php echo $i; ?>][description]" value="<?php echo h($clo['description'] ?? ''); ?>"><select name="clo[<?php echo $i; ?>][category]" style="margin-top:6px;"><?php foreach (['Knowledge and Understanding','Skills','Values, Autonomy, and Responsibility'] as $cat): ?><option <?php echo (($clo['category'] ?? '') === $cat) ? 'selected' : ''; ?>><?php echo $cat; ?></option><?php endforeach; ?></select></td>
+<td><?php foreach ($plos as $plo): ?><label style="display:inline-flex;gap:4px;margin-right:10px;font-weight:400;"><input type="checkbox" name="clo[<?php echo $i; ?>][plos][]" value="<?php echo $plo['plo_id']; ?>" <?php echo (!empty($clo['clo_id']) && isset($clo_maps[$clo['clo_id']][$plo['plo_id']])) ? 'checked' : ''; ?>><?php echo h($plo['plo_code']); ?></label><?php endforeach; ?></td>
 <td><input type="text" name="clo[<?php echo $i; ?>][teaching_strategies]" value="<?php echo h($clo['teaching_strategies'] ?? ''); ?>"></td>
 <td><input type="text" name="clo[<?php echo $i; ?>][assessment_methods]" value="<?php echo h($clo['assessment_methods'] ?? ''); ?>"></td>
 <td><?php foreach (['Digital','Communication','Teamwork','Ethics'] as $skill): ?><label style="display:block;font-weight:400;"><input type="checkbox" name="clo[<?php echo $i; ?>][jahiziah][]" value="<?php echo $skill; ?>" <?php echo (!empty($clo['clo_id']) && !empty($jahiziah[$clo['clo_id']]) && in_array($skill, $jahiziah[$clo['clo_id']])) ? 'checked' : ''; ?>> <?php echo $skill; ?></label><?php endforeach; ?></td>
-<?php foreach ($plos as $plo): ?><td><input type="checkbox" name="clo[<?php echo $i; ?>][plos][]" value="<?php echo $plo['plo_id']; ?>" <?php echo (!empty($clo['clo_id']) && isset($clo_maps[$clo['clo_id']][$plo['plo_id']])) ? 'checked' : ''; ?>></td><?php endforeach; ?>
 <?php if (!$readonly): ?><td><button type="button" class="icon-btn" onclick="this.closest('tr').remove()">✕</button></td><?php endif; ?>
 </tr>
 <?php endforeach; ?>
@@ -350,16 +382,28 @@ var cloCount = <?php echo max(count($clos), 1); ?>;
 var ploList = <?php echo json_encode(array_map(fn($p) => ['id' => $p['plo_id'], 'code' => $p['plo_code']], $plos)); ?>;
 function addCloRow(){
     var i = cloCount++;
-    var ploBoxes = ploList.map(p => '<td><input type="checkbox" name="clo['+i+'][plos][]" value="'+p.id+'"></td>').join('');
+    var ploBoxes = ploList.map(p => '<label style="display:inline-flex;gap:4px;margin-right:10px;font-weight:400;"><input type="checkbox" name="clo['+i+'][plos][]" value="'+p.id+'">'+p.code+'</label>').join('');
     var cats = ['Knowledge and Understanding','Skills','Values, Autonomy, and Responsibility'].map(c => '<option>'+c+'</option>').join('');
     var skills = ['Digital','Communication','Teamwork','Ethics'].map(s => '<label style="display:block;font-weight:400;"><input type="checkbox" name="clo['+i+'][jahiziah][]" value="'+s+'"> '+s+'</label>').join('');
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td><input type="text" name="clo['+i+'][code]"></td><td><input type="text" name="clo['+i+'][description]"></td><td><select name="clo['+i+'][category]">'+cats+'</select></td><td><input type="text" name="clo['+i+'][teaching_strategies]"></td><td><input type="text" name="clo['+i+'][assessment_methods]"></td><td>'+skills+'</td>'+ploBoxes+'<td><button type="button" class="icon-btn" onclick="this.closest(\'tr\').remove()">✕</button></td>';
+    tr.innerHTML = '<td><input type="text" name="clo['+i+'][code]"></td><td><input type="text" name="clo['+i+'][description]"><select name="clo['+i+'][category]" style="margin-top:6px;">'+cats+'</select></td><td>'+ploBoxes+'</td><td><input type="text" name="clo['+i+'][teaching_strategies]"></td><td><input type="text" name="clo['+i+'][assessment_methods]"></td><td>'+skills+'</td><td><button type="button" class="icon-btn" onclick="this.closest(\'tr\').remove()">✕</button></td>';
     document.querySelector('#clo-table tbody').appendChild(tr);
 }
 </script>
 
 <?php elseif ($step === 3): ?>
+<div class="card-header"><h2>C. Course Content</h2><?php if (!$readonly): ?><button type="button" class="btn btn-outline btn-sm" onclick="addTopicRow()">+ Add Topic</button><?php endif; ?></div>
+<table id="topic-table"><thead><tr><th>No</th><th>List of Topics</th><th>Contact Hours</th><?php if (!$readonly): ?><th></th><?php endif; ?></tr></thead><tbody>
+<?php $rows = $topics ?: [[]]; foreach ($rows as $i => $t): ?>
+<tr><td><?php echo $i + 1; ?></td><td><input type="text" name="topic[<?php echo $i; ?>][topic_text]" value="<?php echo h($t['topic_text'] ?? ''); ?>"></td><td><input type="number" name="topic[<?php echo $i; ?>][contact_hours]" step="0.5" value="<?php echo h($t['contact_hours'] ?? ''); ?>"></td><?php if (!$readonly): ?><td><button type="button" class="icon-btn" onclick="this.closest('tr').remove()">✕</button></td><?php endif; ?></tr>
+<?php endforeach; ?>
+</tbody></table>
+<script>
+var topicCount = <?php echo max(count($topics), 1); ?>;
+function addTopicRow(){var i=topicCount++;var tr=document.createElement('tr');tr.innerHTML='<td></td><td><input type="text" name="topic['+i+'][topic_text]"></td><td><input type="number" name="topic['+i+'][contact_hours]" step="0.5"></td><td><button type="button" class="icon-btn" onclick="this.closest(\'tr\').remove()">✕</button></td>';document.querySelector('#topic-table tbody').appendChild(tr);}
+</script>
+
+<?php elseif ($step === 4): ?>
 <div class="card-header"><h2>D. Students Assessment Activities</h2><?php if (!$readonly): ?><button type="button" class="btn btn-outline btn-sm" onclick="addAssessRow()">+ Add Activity</button><?php endif; ?></div>
 <table id="assess-table"><thead><tr><th>Assessment Activities</th><th>Assessment timing<br>(in week no)</th><th>Percentage of Total Assessment Score</th><th>Linked CLOs</th><?php if (!$readonly): ?><th></th><?php endif; ?></tr></thead><tbody>
 <?php $rows = $assessments ?: [[]]; foreach ($rows as $i => $a): $linked = !empty($a['clo_ids']) ? explode(',', $a['clo_ids']) : []; ?>
@@ -378,54 +422,30 @@ function addAssessRow(){
 }
 </script>
 
-<?php elseif ($step === 4): ?>
-<div class="card-header"><h2>A.2 Teaching mode and A.3 Contact Hours</h2></div>
-<h3>Teaching mode (mark all that apply)</h3>
-<table><thead><tr><th>Use</th><th>Mode of Instruction</th><th>Contact Hours</th><th>Percentage</th></tr></thead><tbody>
-<?php foreach (['Traditional classroom','E-learning','Hybrid','Distance learning'] as $i => $mode): $m = $mode_data[$mode] ?? []; ?>
-<tr><td><input type="checkbox" name="mode[<?php echo $i; ?>][selected]" value="1" <?php echo $m ? 'checked' : ''; ?>><input type="hidden" name="mode[<?php echo $i; ?>][mode_type]" value="<?php echo $mode; ?>"></td><td><?php echo $mode; ?></td><td><input type="number" name="mode[<?php echo $i; ?>][contact_hours]" step="0.5" value="<?php echo h($m['contact_hours'] ?? ''); ?>"></td><td><input type="number" name="mode[<?php echo $i; ?>][percentage]" step="0.5" value="<?php echo h($m['percentage'] ?? ''); ?>"></td></tr>
-<?php endforeach; ?>
-</tbody></table>
-<h3>Contact Hours (based on the academic semester)</h3>
-<table><thead><tr><th>Activity</th><th>Contact Hours</th></tr></thead><tbody>
-<?php foreach (['Lectures','Laboratory/Studio','Field','Tutorial','Others'] as $i => $activity): $hrow = $hour_data[$activity] ?? []; ?>
-<tr><td><?php echo $activity; ?><input type="hidden" name="hours[<?php echo $i; ?>][activity_type]" value="<?php echo $activity; ?>"></td><td><input type="number" name="hours[<?php echo $i; ?>][hours]" step="0.5" value="<?php echo h($hrow['hours'] ?? ''); ?>"></td></tr>
-<?php endforeach; ?>
-</tbody></table>
-
 <?php elseif ($step === 5): ?>
-<div class="card-header"><h2>C. Course Content</h2><?php if (!$readonly): ?><button type="button" class="btn btn-outline btn-sm" onclick="addTopicRow()">+ Add Topic</button><?php endif; ?></div>
-<table id="topic-table"><thead><tr><th>No</th><th>List of Topics</th><th>Contact Hours</th><?php if (!$readonly): ?><th></th><?php endif; ?></tr></thead><tbody>
-<?php $rows = $topics ?: [[]]; foreach ($rows as $i => $t): ?>
-<tr><td><?php echo $i + 1; ?></td><td><input type="text" name="topic[<?php echo $i; ?>][topic_text]" value="<?php echo h($t['topic_text'] ?? ''); ?>"></td><td><input type="number" name="topic[<?php echo $i; ?>][contact_hours]" step="0.5" value="<?php echo h($t['contact_hours'] ?? ''); ?>"></td><?php if (!$readonly): ?><td><button type="button" class="icon-btn" onclick="this.closest('tr').remove()">✕</button></td><?php endif; ?></tr>
-<?php endforeach; ?>
-</tbody></table>
-<script>
-var topicCount = <?php echo max(count($topics), 1); ?>;
-function addTopicRow(){var i=topicCount++;var tr=document.createElement('tr');tr.innerHTML='<td></td><td><input type="text" name="topic['+i+'][topic_text]"></td><td><input type="number" name="topic['+i+'][contact_hours]" step="0.5"></td><td><button type="button" class="icon-btn" onclick="this.closest(\'tr\').remove()">✕</button></td>';document.querySelector('#topic-table tbody').appendChild(tr);}
-</script>
-
-<?php elseif ($step === 6): ?>
-<div class="card-header"><h2>E. Learning Resources and Facilities + F/G Quality and Approval</h2></div>
-<h3>References and Learning Resources</h3>
+<div class="card-header"><h2>E. Learning Resources and Facilities</h2></div>
+<h3>1. References and Learning Resources</h3>
 <table><thead><tr><th>Type</th><th>Resource</th></tr></thead><tbody>
 <?php $res_rows = $res ?: array_map(fn($c) => ['category' => $c, 'resource_text' => ''], ['Essential References','Supportive References','Electronic Materials','Other Learning Materials']); foreach ($res_rows as $i => $r): ?>
 <tr><td><select name="resource[<?php echo $i; ?>][category]"><?php foreach (['Essential References','Supportive References','Electronic Materials','Other Learning Materials'] as $cat): ?><option <?php echo (($r['category'] ?? '') === $cat) ? 'selected' : ''; ?>><?php echo $cat; ?></option><?php endforeach; ?></select></td><td><input type="text" name="resource[<?php echo $i; ?>][resource_text]" value="<?php echo h($r['resource_text'] ?? ''); ?>"></td></tr>
 <?php endforeach; ?>
 </tbody></table>
-<h3>Required Facilities and equipment</h3>
+<h3>2. Required Facilities and Equipment</h3>
 <table><thead><tr><th>Items</th><th>Resources</th></tr></thead><tbody>
 <?php foreach (['facilities','Technology equipment','Other equipment'] as $i => $item): ?>
 <tr><td><?php echo $item; ?><input type="hidden" name="facility[<?php echo $i; ?>][item]" value="<?php echo $item; ?>"></td><td><input type="text" name="facility[<?php echo $i; ?>][resources]" value="<?php echo h($facility_data[$item] ?? ''); ?>"></td></tr>
 <?php endforeach; ?>
 </tbody></table>
-<h3>Assessment of Course Quality</h3>
+
+<?php elseif ($step === 6): ?>
+<div class="card-header"><h2>F. Assessment of Course Quality + G. Specification Approval</h2></div>
+<h3>F. Assessment of Course Quality</h3>
 <table><thead><tr><th>Assessment Areas/Issues</th><th>Assessor</th><th>Assessment Methods</th></tr></thead><tbody>
 <?php foreach (['Effectiveness of teaching','Effectiveness of Students assessment','Quality of learning resources','The extent to which CLOs have been achieved','Other'] as $i => $area): $q = $quality_data[$area] ?? []; ?>
 <tr><td><?php echo $area; ?><input type="hidden" name="quality[<?php echo $i; ?>][assessment_area]" value="<?php echo $area; ?>"></td><td><input type="text" name="quality[<?php echo $i; ?>][assessor]" value="<?php echo h($q['assessor'] ?? ''); ?>"></td><td><input type="text" name="quality[<?php echo $i; ?>][assessment_method]" value="<?php echo h($q['assessment_method'] ?? ''); ?>"></td></tr>
 <?php endforeach; ?>
 </tbody></table>
-<h3>Specification Approval</h3>
+<h3>G. Specification Approval</h3>
 <div class="form-row"><div class="form-group"><label>COUNCIL /COMMITTEE</label><input type="text" name="council_committee" value="<?php echo h($approval['council_committee'] ?? ''); ?>"></div><div class="form-group"><label>REFERENCE NO.</label><input type="text" name="reference_no" value="<?php echo h($approval['reference_no'] ?? ''); ?>"></div><div class="form-group"><label>DATE</label><input type="date" name="approval_date" value="<?php echo h($approval['approval_date'] ?? ''); ?>"></div></div>
 
 <?php elseif ($step === 7): ?>
@@ -461,7 +481,7 @@ $can_submit = $has_basic && $has_clos && $all_mapped && $has_assess && $pct_ok;
 <?php endif; ?>
 
 <?php if ($step < 8 && !$readonly): ?>
-<div style="display:flex;gap:10px;margin-top:24px;padding-top:18px;border-top:1px solid var(--border);"><button type="submit" name="save" class="btn btn-outline">Save</button><button type="submit" name="next" class="btn btn-primary">Save & Next →</button><a href="dashboard.php" class="btn btn-ghost" style="margin-left:auto;">Back to Dashboard</a></div>
+<div style="display:flex;gap:10px;margin-top:24px;padding-top:18px;border-top:1px solid var(--border);"><button type="submit" name="save" class="btn btn-outline">Save</button><button type="submit" name="next" class="btn btn-primary">Save & Next</button><a href="dashboard.php" class="btn btn-ghost" style="margin-left:auto;">Back to Dashboard</a></div>
 <?php endif; ?>
 </fieldset>
 </form>
