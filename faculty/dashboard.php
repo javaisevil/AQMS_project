@@ -9,12 +9,12 @@ $stmt = $pdo->prepare('SELECT * FROM course_specs WHERE faculty_id = ? ORDER BY 
 $stmt->execute([$_SESSION['user_id']]);
 $courses = $stmt->fetchAll();
 
-$counts = ['draft' => 0, 'pending_hod' => 0, 'pending_qa' => 0, 'approved' => 0];
+$counts = ['draft' => 0, 'pending_hod' => 0, 'pending_qa' => 0, 'approved' => 0, 'returned_by_hod' => 0, 'returned_by_qa' => 0];
 foreach ($courses as $c) {
     $counts[$c['status']] = ($counts[$c['status']] ?? 0) + 1;
 }
 
-// Recent feedback (rejections from HoD/QA)
+// Recent feedback from HoD or QA when a specification is returned for revision.
 $stmt2 = $pdo->prepare(
     'SELECT al.*, cs.course_title, cs.course_code, u.full_name as reviewer, u.role as reviewer_role
      FROM approval_log al
@@ -22,7 +22,7 @@ $stmt2 = $pdo->prepare(
      JOIN user u ON al.user_id = u.user_id
      WHERE cs.faculty_id = ?
        AND al.comment IS NOT NULL AND al.comment != ""
-       AND al.to_status = "draft"
+       AND al.to_status IN ("returned_by_hod", "returned_by_qa")
      ORDER BY al.created_at DESC LIMIT 5'
 );
 $stmt2->execute([$_SESSION['user_id']]);
@@ -118,7 +118,7 @@ include '../includes/header.php';
                     </td>
                     <td><?php echo date('M d, Y', strtotime($course['updated_at'])); ?></td>
                     <td class="table-actions">
-                        <?php if ($course['status'] === 'draft'): ?>
+                        <?php if (in_array($course['status'], ['draft', 'returned_by_hod', 'returned_by_qa'], true)): ?>
                             <a href="course_edit.php?id=<?php echo $course['course_id']; ?>&step=1" class="btn btn-sm btn-primary">Edit</a>
                         <?php else: ?>
                             <a href="course_edit.php?id=<?php echo $course['course_id']; ?>&step=1" class="btn btn-sm btn-ghost">View</a>
